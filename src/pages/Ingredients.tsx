@@ -1,0 +1,743 @@
+import { useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from '@/db/database';
+import { Ingredient, Unit, SpiritType } from '@/types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Plus, Search, Edit, Trash2, TrendingUp, TrendingDown, AlertTriangle, Copy, Filter, GripVertical, Check, X } from 'lucide-react';
+import { calculateUnitPrice, formatCurrency, formatUnit } from '@/utils/calculations';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+// 分类配置 - 排列顺序：烈酒、利口酒、其他酒类、香精、果汁、汽水、糖浆、装饰品、其他
+const CATEGORY_CONFIG: Record<SpiritType, { label: string; color: string }> = {
+  spirit: { label: '烈酒', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
+  liqueur: { label: '利口酒', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
+  other_alcohol: { label: '其他酒类', color: 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200' },
+  essence: { label: '香精', color: 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200' },
+  juice: { label: '果汁', color: 'bg-lime-100 text-lime-800 dark:bg-lime-900 dark:text-lime-200' },
+  soda: { label: '汽水', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
+  syrup: { label: '糖浆', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' },
+  garnish: { label: '装饰品', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
+  other: { label: '其他', color: 'bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-200' },
+};
+
+// 可排序卡片组件
+function SortableIngredientCard({ 
+  ingredient, 
+  isSortMode,
+  onEdit,
+  onDuplicate,
+  onDelete,
+  onAdjustStock,
+  onSetStock,
+}: { 
+  ingredient: Ingredient;
+  isSortMode: boolean;
+  onEdit: (ingredient: Ingredient) => void;
+  onDuplicate: (ingredient: Ingredient) => void;
+  onDelete: (id: number) => void;
+  onAdjustStock: (id: number, adjustment: number) => void;
+  onSetStock: (id: number, value: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: ingredient.id!, disabled: !isSortMode });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const unitPrice = calculateUnitPrice(ingredient);
+  const isLowStock = (ingredient.currentStock || 0) < (ingredient.minStock || 0);
+  const stockPercentage = ingredient.minStock
+    ? ((ingredient.currentStock || 0) / ingredient.minStock) * 100
+    : 100;
+
+  const categoryConfig = CATEGORY_CONFIG[ingredient.category] || CATEGORY_CONFIG.other;
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <Card className={`card-hover ${isLowStock ? 'border-orange-200' : ''} ${isSortMode ? 'cursor-move' : ''}`}>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-2">
+            {isSortMode && (
+              <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing pt-1">
+                <GripVertical className="h-5 w-5 text-muted-foreground" />
+              </div>
+            )}
+            <div className="flex-1">
+              <CardTitle className="text-lg">{ingredient.name}</CardTitle>
+              {ingredient.nameEn && (
+                <p className="text-sm text-muted-foreground">{ingredient.nameEn}</p>
+              )}
+            </div>
+            <Badge className={categoryConfig.color}>
+              {categoryConfig.label}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-2 py-3">
+          {/* 基本信息 - 更紧凑布局 */}
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm">
+            <div className="flex justify-between col-span-2">
+              <span className="text-muted-foreground text-xs">价格:</span>
+              <span className="font-medium text-xs">{formatCurrency(ingredient.price)}</span>
+            </div>
+            <div className="flex justify-between col-span-2">
+              <span className="text-muted-foreground text-xs">单价:</span>
+              <span className="font-medium text-xs">{formatCurrency(unitPrice)}/{formatUnit(ingredient.unit)}</span>
+            </div>
+            {ingredient.alcoholContent !== undefined && ingredient.alcoholContent > 0 && (
+              <div className="flex justify-between col-span-2">
+                <span className="text-muted-foreground text-xs">酒精度:</span>
+                <span className="text-xs">{ingredient.alcoholContent}%</span>
+              </div>
+            )}
+          </div>
+
+          {!isSortMode && (
+            <>
+              {/* 库存管理 - 更紧凑布局 */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-1.5">
+                  <span className="text-xs text-muted-foreground">库存</span>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 w-6 p-0 touch-feedback"
+                      onClick={() => onAdjustStock(ingredient.id!, -10)}
+                    >
+                      <TrendingDown className="h-3 w-3" />
+                    </Button>
+                    <Input
+                      type="number"
+                      value={ingredient.currentStock || ''}
+                      onChange={(e) => onSetStock(ingredient.id!, e.target.value)}
+                      className="h-6 w-14 text-center text-xs px-1"
+                      min="0"
+                      placeholder="0"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 w-6 p-0 touch-feedback"
+                      onClick={() => onAdjustStock(ingredient.id!, 10)}
+                    >
+                      <TrendingUp className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="h-1 bg-secondary rounded-full overflow-hidden">
+                  <div
+                    className={`h-full transition-all ${
+                      isLowStock ? 'bg-orange-500' : 'bg-green-500'
+                    }`}
+                    style={{ width: `${Math.min(stockPercentage, 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* 操作按钮 - 更紧凑布局 */}
+              <div className="flex gap-1.5">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 touch-feedback h-7 text-xs"
+                  onClick={() => onEdit(ingredient)}
+                >
+                  <Edit className="mr-1 h-3 w-3" />
+                  编辑
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="touch-feedback h-7 px-2"
+                  onClick={() => onDuplicate(ingredient)}
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="touch-feedback h-7 px-2"
+                  onClick={() => onDelete(ingredient.id!)}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+export default function Ingredients() {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<SpiritType | 'all'>('all');
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
+  const [isSortMode, setIsSortMode] = useState(false);
+  const [sortedIngredients, setSortedIngredients] = useState<Ingredient[]>([]);
+  const [formData, setFormData] = useState<Partial<Ingredient>>({
+    name: '',
+    nameEn: '',
+    category: 'other',
+    price: undefined,
+    quantity: undefined,
+    unit: 'ml',
+    alcoholContent: undefined,
+    wastageRate: undefined, // 不再默认5%
+    currentStock: undefined,
+    minStock: undefined,
+  });
+
+  const ingredients = useLiveQuery(() => db.ingredients.toArray(), []);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // 进入排序模式时，初始化排序列表
+  const handleEnterSortMode = () => {
+    if (ingredients) {
+      setSortedIngredients([...ingredients]);
+      setSearchTerm('');
+      setCategoryFilter('all');
+      setIsSortMode(true);
+    }
+  };
+
+  // 退出排序模式并保存
+  const handleExitSortMode = async () => {
+    // 这里可以保存排序顺序到数据库（如果需要持久化）
+    // 目前只是退出排序模式
+    setIsSortMode(false);
+  };
+
+  // 取消排序
+  const handleCancelSort = () => {
+    setIsSortMode(false);
+    setSortedIngredients([]);
+  };
+
+  // 处理拖拽结束
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setSortedIngredients((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
+
+  const filteredIngredients = isSortMode 
+    ? sortedIngredients 
+    : ingredients?.filter(ing => {
+        const matchesSearch = ing.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          ing.nameEn?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesCategory = categoryFilter === 'all' || ing.category === categoryFilter;
+        return matchesSearch && matchesCategory;
+      });
+
+  // 计算各分类的数量
+  const getCategoryCount = (category: SpiritType) => {
+    return ingredients?.filter(ing => ing.category === category).length || 0;
+  };
+
+  const lowStockItems = ingredients?.filter(
+    ing => (ing.currentStock || 0) < (ing.minStock || 0)
+  );
+
+  const hasActiveFilters = searchTerm !== '' || categoryFilter !== 'all';
+
+  const handleOpenDialog = async (ingredient?: Ingredient, isDuplicate = false) => {
+    if (ingredient) {
+      if (isDuplicate) {
+        // 复制模式：立即创建副本并插入到原项目后面
+        const newIngredient = {
+          ...ingredient,
+          id: undefined,
+          name: `${ingredient.name} (副本)`,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        
+        // 添加新原料
+        await db.ingredients.add(newIngredient);
+        return; // 直接返回，不打开对话框
+      } else {
+        // 编辑模式
+        setEditingIngredient(ingredient);
+        setFormData(ingredient);
+      }
+    } else {
+      // 新建模式
+      setEditingIngredient(null);
+      setFormData({
+        name: '',
+        nameEn: '',
+        category: 'other',
+        price: undefined,
+        quantity: undefined,
+        unit: 'ml',
+        alcoholContent: undefined,
+        wastageRate: undefined, // 不再默认5%
+        currentStock: undefined,
+        minStock: undefined,
+      });
+    }
+    setIsDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    try {
+      if (!formData.name) {
+        alert('请输入原料名称');
+        return;
+      }
+
+      const ingredientData: Ingredient = {
+        ...formData as Ingredient,
+        price: formData.price || 0,
+        quantity: formData.quantity || 0,
+        alcoholContent: formData.alcoholContent || 0,
+        wastageRate: formData.wastageRate, // 不设置默认值
+        currentStock: formData.currentStock || 0,
+        minStock: formData.minStock || 0,
+        updatedAt: new Date(),
+        createdAt: formData.createdAt || new Date(),
+      };
+
+      if (editingIngredient?.id) {
+        await db.ingredients.update(editingIngredient.id, ingredientData);
+      } else {
+        await db.ingredients.add(ingredientData);
+      }
+
+      setIsDialogOpen(false);
+      setEditingIngredient(null);
+    } catch (error) {
+      console.error('Failed to save ingredient:', error);
+      alert('保存失败，请重试');
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (confirm('确定要删除这个原料吗？')) {
+      await db.ingredients.delete(id);
+    }
+  };
+
+  const handleAdjustStock = async (id: number, adjustment: number) => {
+    const ingredient = await db.ingredients.get(id);
+    if (ingredient) {
+      const newStock = (ingredient.currentStock || 0) + adjustment;
+      await db.ingredients.update(id, { 
+        currentStock: Math.max(0, newStock),
+        updatedAt: new Date(),
+      });
+      
+      await db.inventoryLogs.add({
+        ingredientId: id,
+        type: adjustment > 0 ? 'in' : 'out',
+        quantity: Math.abs(adjustment),
+        timestamp: new Date(),
+      });
+    }
+  };
+
+  const handleSetStock = async (id: number, value: string) => {
+    const newStock = value === '' ? 0 : Number(value);
+    await db.ingredients.update(id, { 
+      currentStock: Math.max(0, newStock),
+      updatedAt: new Date(),
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">原料与库存管理</h2>
+          <p className="text-muted-foreground">
+            {isSortMode ? '拖动卡片重新排序' : '管理你的调酒原料库存和价格'}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {isSortMode ? (
+            <>
+              <Button 
+                variant="outline" 
+                onClick={handleCancelSort} 
+                className="touch-feedback"
+              >
+                <X className="mr-2 h-4 w-4" />
+                取消
+              </Button>
+              <Button 
+                onClick={handleExitSortMode} 
+                className="touch-feedback"
+              >
+                <Check className="mr-2 h-4 w-4" />
+                完成排序
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button 
+                variant="outline" 
+                onClick={handleEnterSortMode}
+                className="touch-feedback"
+                disabled={hasActiveFilters}
+              >
+                <GripVertical className="mr-2 h-4 w-4" />
+                排序
+              </Button>
+              <Button onClick={() => handleOpenDialog()} className="touch-feedback">
+                <Plus className="mr-2 h-4 w-4" />
+                添加原料
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* 排序模式提示 */}
+      {hasActiveFilters && !isSortMode && (
+        <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900">
+          <CardContent className="py-3">
+            <p className="text-sm text-blue-800 dark:text-blue-200">
+              💡 提示：清除搜索和筛选条件后可以使用拖拽排序功能
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 库存警告 */}
+      {lowStockItems && lowStockItems.length > 0 && (
+        <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-900">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-orange-800 dark:text-orange-200">
+              <AlertTriangle className="h-5 w-5" />
+              库存警告 ({lowStockItems.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {lowStockItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-lg"
+                >
+                  <div>
+                    <p className="font-medium">{item.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      当前: {item.currentStock}{formatUnit(item.unit)} / 
+                      最低: {item.minStock}{formatUnit(item.unit)}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => handleAdjustStock(item.id!, item.quantity)}
+                  >
+                    补满
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 搜索和筛选栏 - 排序模式下隐藏 */}
+      {!isSortMode && (
+        <div className="flex gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="搜索原料名称..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <Select value={categoryFilter} onValueChange={(value) => setCategoryFilter(value as SpiritType | 'all')}>
+            <SelectTrigger className="w-40">
+              <Filter className="mr-2 h-4 w-4" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部分类 ({ingredients?.length || 0})</SelectItem>
+              {Object.entries(CATEGORY_CONFIG).map(([key, config]) => (
+                <SelectItem key={key} value={key}>
+                  {config.label} ({getCategoryCount(key as SpiritType)})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* 原料列表 - 更紧凑的间距 */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={filteredIngredients?.map(i => i.id!) || []}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {filteredIngredients?.map((ingredient) => (
+              <SortableIngredientCard
+                key={ingredient.id}
+                ingredient={ingredient}
+                isSortMode={isSortMode}
+                onEdit={(ing) => handleOpenDialog(ing, false)}
+                onDuplicate={(ing) => handleOpenDialog(ing, true)}
+                onDelete={handleDelete}
+                onAdjustStock={handleAdjustStock}
+                onSetStock={handleSetStock}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+
+      {filteredIngredients?.length === 0 && (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">
+            {searchTerm || categoryFilter !== 'all' ? '没有找到符合条件的原料' : '还没有原料'}
+          </p>
+          <Button
+            variant="link"
+            onClick={() => {
+              setSearchTerm('');
+              setCategoryFilter('all');
+            }}
+            className="mt-2"
+          >
+            清除筛选
+          </Button>
+        </div>
+      )}
+
+      {/* 添加/编辑对话框 */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingIngredient ? '编辑原料' : formData.id === undefined && formData.name?.includes('副本') ? '复制原料' : '添加原料'}
+            </DialogTitle>
+            <DialogDescription>
+              填写原料的详细信息
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">原料名称 (中文) *</Label>
+                <Input
+                  id="name"
+                  value={formData.name || ''}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="例如: 金酒"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="nameEn">原料名称 (英文)</Label>
+                <Input
+                  id="nameEn"
+                  value={formData.nameEn || ''}
+                  onChange={(e) => setFormData({ ...formData, nameEn: e.target.value })}
+                  placeholder="例如: Gin"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="category">分类 *</Label>
+                <Select
+                  value={formData.category}
+                  onValueChange={(value) => setFormData({ ...formData, category: value as SpiritType })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(CATEGORY_CONFIG).map(([key, config]) => (
+                      <SelectItem key={key} value={key}>
+                        {config.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="unit">单位 *</Label>
+                <Select
+                  value={formData.unit}
+                  onValueChange={(value) => setFormData({ ...formData, unit: value as Unit })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ml">毫升 (ml)</SelectItem>
+                    <SelectItem value="oz">盎司 (oz)</SelectItem>
+                    <SelectItem value="cl">厘升 (cl)</SelectItem>
+                    <SelectItem value="g">克 (g)</SelectItem>
+                    <SelectItem value="piece">个 (piece)</SelectItem>
+                    <SelectItem value="dash">少许 (dash)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="price">价格 (¥) *</Label>
+                <Input
+                  id="price"
+                  type="number"
+                  value={formData.price ?? ''}
+                  onChange={(e) => setFormData({ ...formData, price: e.target.value === '' ? undefined : Number(e.target.value) })}
+                  placeholder="0"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="quantity">规格数量 *</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  value={formData.quantity ?? ''}
+                  onChange={(e) => setFormData({ ...formData, quantity: e.target.value === '' ? undefined : Number(e.target.value) })}
+                  placeholder="0"
+                  min="0"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="alcoholContent">酒精度 (%)</Label>
+                <Input
+                  id="alcoholContent"
+                  type="number"
+                  value={formData.alcoholContent ?? ''}
+                  onChange={(e) => setFormData({ ...formData, alcoholContent: e.target.value === '' ? undefined : Number(e.target.value) })}
+                  placeholder="0"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="wastageRate">损耗率 (%)</Label>
+                <Input
+                  id="wastageRate"
+                  type="number"
+                  value={formData.wastageRate ?? ''}
+                  onChange={(e) => setFormData({ ...formData, wastageRate: e.target.value === '' ? undefined : Number(e.target.value) })}
+                  placeholder="0"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="currentStock">当前库存</Label>
+                <Input
+                  id="currentStock"
+                  type="number"
+                  value={formData.currentStock ?? ''}
+                  onChange={(e) => setFormData({ ...formData, currentStock: e.target.value === '' ? undefined : Number(e.target.value) })}
+                  placeholder="0"
+                  min="0"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="minStock">最低库存预警</Label>
+                <Input
+                  id="minStock"
+                  type="number"
+                  value={formData.minStock ?? ''}
+                  onChange={(e) => setFormData({ ...formData, minStock: e.target.value === '' ? undefined : Number(e.target.value) })}
+                  placeholder="0"
+                  min="0"
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={handleSave} disabled={!formData.name}>
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

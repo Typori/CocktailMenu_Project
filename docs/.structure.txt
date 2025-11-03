@@ -1,0 +1,30 @@
+📚 文档结构说明
+
+docs/
+├── README.md                          # 文档中心首页，导航到所有文档
+├── getting-started/                   # 入门指南
+│   └── quick-start.md                # 快速启动指南（合并了3个启动文档）
+├── guides/                           # 使用指南
+│   ├── features.md                   # 功能详解
+│   └── changelog.md                  # 更新日志（合并了配方编辑器相关文档）
+└── development/                      # 开发文档
+    ├── overview.md                   # 项目总览
+    ├── development.md                # 开发指南
+    └── completion.md                 # 完成报告
+
+根目录:
+└── README.md                         # 项目主README，简洁版，指向docs/
+
+整理说明:
+1. 合并了重复内容的文档
+   - 快速启动.md + 一键启动说明.md + QUICK_START.md → quick-start.md
+   - 配方编辑器更新说明.md + 配方编辑器优化说明.md → changelog.md
+   - PROJECT_OVERVIEW.md + PROJECT_SUMMARY.md → overview.md
+
+2. 删除了冗余文档
+   - 根目录下的所有说明文档已移至docs/目录
+
+3. 优化了文档结构
+   - 按功能分类：入门、使用、开发
+   - 清晰的导航路径
+   - 统一的文档风格
