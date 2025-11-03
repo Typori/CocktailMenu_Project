@@ -9,7 +9,7 @@
 
 ### 📘 使用指南
 - **[功能详解](./guides/features.md)** - 所有功能的详细说明
-- **[更新历史](./guides/changelog.md)** - 历史版本更新记录（归档）
+- **[更新日志](./CHANGELOG.md)** - 版本更新记录 📝
 
 ### 🛠️ 开发文档
 - **[开发指南](./development/README.md)** - **新开发者必读** ⭐
