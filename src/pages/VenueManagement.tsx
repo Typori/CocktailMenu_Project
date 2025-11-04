@@ -28,8 +28,9 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs';
-import { Plus, Store, Edit, Trash2, Copy, Star, Search, Filter, X, GripVertical, Check } from 'lucide-react';
+import { Plus, Store, Edit, Trash2, Copy, Star, Search, Filter, X, GripVertical, Check, FileDown } from 'lucide-react';
 import { formatCurrency, getFlavorTagLabel, getDrinkDurationLabel, getGlassTypeLabel } from '@/utils/calculations';
+import { exportVenueMenuToPDF } from '@/utils/pdfExport';
 import {
   DndContext,
   closestCenter,
@@ -203,8 +204,18 @@ export default function VenueManagement() {
   const venues = useLiveQuery(() => db.venues.toArray(), []);
   const allRecipes = useLiveQuery(() => db.recipes.toArray(), []);
   const allMenuInfos = useLiveQuery(() => db.menuInfo.toArray(), []);
+  const ingredients = useLiveQuery(() => db.ingredients.toArray(), []);
   const venueRecipes = useLiveQuery(
-    () => selectedVenueId ? db.venueRecipes.where('venueId').equals(selectedVenueId).toArray() : Promise.resolve([]),
+    async () => {
+      if (!selectedVenueId) return [];
+      const recipes = await db.venueRecipes.where('venueId').equals(selectedVenueId).toArray();
+      // 按displayOrder排序，如果没有则按id排序
+      return recipes.sort((a, b) => {
+        const orderA = a.displayOrder ?? a.id ?? 0;
+        const orderB = b.displayOrder ?? b.id ?? 0;
+        return orderA - orderB;
+      });
+    },
     [selectedVenueId]
   );
 
@@ -249,6 +260,7 @@ export default function VenueManagement() {
       await db.venueRecipes.update(sortedVenueRecipes[i].id!, { displayOrder: i });
     }
     setIsSortMode(false);
+    setSortedVenueRecipes([]);
   };
 
   // 取消排序
@@ -406,6 +418,19 @@ export default function VenueManagement() {
 
     setIsPriceDialogOpen(false);
     setEditingVenueRecipe(null);
+  };
+
+  const handleExportVenueMenu = async () => {
+    if (!selectedVenue || !venueRecipesWithInfo || !ingredients || venueRecipesWithInfo.length === 0) {
+      alert('没有可导出的酒款');
+      return;
+    }
+    try {
+      await exportVenueMenuToPDF(selectedVenue, venueRecipesWithInfo, ingredients);
+    } catch (error) {
+      console.error('Failed to export venue menu:', error);
+      alert('导出酒单失败，请重试');
+    }
   };
 
   // 如果没有店面，显示创建提示
@@ -594,6 +619,15 @@ export default function VenueManagement() {
                       >
                         <GripVertical className="mr-2 h-4 w-4" />
                         排序
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={handleExportVenueMenu}
+                        className="touch-feedback"
+                        disabled={!venueRecipesWithInfo || venueRecipesWithInfo.length === 0}
+                      >
+                        <FileDown className="mr-2 h-4 w-4" />
+                        导出
                       </Button>
                       <Button onClick={() => setIsAddRecipeDialogOpen(true)} className="touch-feedback">
                         <Plus className="mr-2 h-4 w-4" />

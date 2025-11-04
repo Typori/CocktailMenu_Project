@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ImagePreviewDialog } from '@/components/ImagePreviewDialog';
-import { ArrowLeft, Edit, Star, Copy, ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Edit, Star, Copy, ImageIcon, ChevronLeft, ChevronRight, FileDown } from 'lucide-react';
 import { formatCurrency, getFlavorTagLabel, getDrinkDurationLabel, getGlassTypeLabel } from '@/utils/calculations';
+import { exportRecipeToPDF } from '@/utils/pdfExport';
 
 export default function RecipeViewer() {
   const { id } = useParams();
@@ -53,6 +54,16 @@ export default function RecipeViewer() {
     navigate('/recipes');
   };
 
+  const handleExportPDF = async () => {
+    if (!recipe || !ingredients) return;
+    try {
+      await exportRecipeToPDF(recipe, menuInfo, ingredients);
+    } catch (error) {
+      console.error('Failed to export PDF:', error);
+      alert('导出PDF失败，请重试');
+    }
+  };
+
   const nextImage = () => {
     if (recipe?.images && recipe.images.length > 0) {
       setCurrentImageIndex((prev) => (prev + 1) % recipe.images!.length);
@@ -82,6 +93,15 @@ export default function RecipeViewer() {
     <div className="relative pb-6">
       {/* 固定的操作按钮组 - 右上角 */}
       <div className="fixed top-4 right-4 z-50 flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExportPDF}
+          className="touch-feedback shadow-lg bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+        >
+          <FileDown className="mr-1 h-4 w-4" />
+          <span className="hidden sm:inline">导出</span>
+        </Button>
         <Button
           variant="outline"
           size="sm"
