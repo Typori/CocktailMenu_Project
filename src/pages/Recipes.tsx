@@ -175,11 +175,23 @@ export default function Recipes() {
     glassType?: GlassType;
   }>({});
   
-  const recipes = useLiveQuery(() => db.recipes.toArray());
+  const recipes = useLiveQuery(async () => {
+    const allRecipes = await db.recipes.toArray();
+    // 按displayOrder排序，如果没有则按id排序
+    return allRecipes.sort((a, b) => {
+      const orderA = a.displayOrder ?? a.id ?? 0;
+      const orderB = b.displayOrder ?? b.id ?? 0;
+      return orderA - orderB;
+    });
+  });
   const menuInfos = useLiveQuery(() => db.menuInfo.toArray());
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 拖拽8px后才激活，避免误触
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -202,9 +214,14 @@ export default function Recipes() {
     }
   };
 
-  // 退出排序模式
-  const handleExitSortMode = () => {
+  // 退出排序模式并保存
+  const handleExitSortMode = async () => {
+    // 保存排序顺序到数据库
+    for (let i = 0; i < sortedRecipes.length; i++) {
+      await db.recipes.update(sortedRecipes[i].id!, { displayOrder: i });
+    }
     setIsSortMode(false);
+    setSortedRecipes([]);
   };
 
   // 取消排序

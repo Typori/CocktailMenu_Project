@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/database';
@@ -14,11 +14,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { ImagePreviewDialog } from '@/components/ImagePreviewDialog';
 import { Combobox } from '@/components/ui/combobox';
 import { ArrowLeft, Save, Plus, Trash2, X, Upload, ImageIcon, GripVertical } from 'lucide-react';
 import { updateRecipeCalculations, convertUnit, canConvertUnits, convertToMl, getFlavorTagLabel } from '@/utils/calculations';
+import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 import {
   DndContext,
   closestCenter,
@@ -154,6 +165,9 @@ export default function RecipeEditor() {
     drinkDuration: 'short',
     price: 0,
   });
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const initialDataRef = useRef<{ recipe: Partial<Recipe>; menuInfo: Partial<MenuInfo> } | null>(null);
 
   const ingredients = useLiveQuery(() => db.ingredients.toArray(), []);
 
@@ -182,13 +196,35 @@ export default function RecipeEditor() {
   useEffect(() => {
     if (id) {
       db.recipes.get(Number(id)).then((r) => {
-        if (r) setRecipe(r);
+        if (r) {
+          setRecipe(r);
+          initialDataRef.current = { recipe: r, menuInfo: menuInfo };
+        }
       });
       db.menuInfo.where('recipeId').equals(Number(id)).first().then((m) => {
-        if (m) setMenuInfo(m);
+        if (m) {
+          setMenuInfo(m);
+          if (initialDataRef.current) {
+            initialDataRef.current.menuInfo = m;
+          }
+        }
       });
+    } else {
+      // 新建配方时，保存初始状态
+      initialDataRef.current = { recipe, menuInfo };
     }
   }, [id]);
+
+  // 检测是否有未保存的更改
+  useEffect(() => {
+    if (!initialDataRef.current || isSaving) return;
+    
+    const hasChanges = 
+      JSON.stringify(recipe) !== JSON.stringify(initialDataRef.current.recipe) ||
+      JSON.stringify(menuInfo) !== JSON.stringify(initialDataRef.current.menuInfo);
+    
+    setHasUnsavedChanges(hasChanges);
+  }, [recipe, menuInfo, isSaving]);
 
   // 自动计算容量和酒精度
   useEffect(() => {
@@ -353,14 +389,18 @@ export default function RecipeEditor() {
 
   const handleSave = async () => {
     try {
+      setIsSaving(true);
+      
       if (!recipe.name) {
         alert('请输入配方名称');
+        setIsSaving(false);
         return;
       }
 
       // 确保至少有一个菜单名称
       if (!menuInfo.menuNames || menuInfo.menuNames.length === 0 || !menuInfo.menuNames[0].name) {
         alert('请至少输入一个菜单名称');
+        setIsSaving(false);
         return;
       }
 
@@ -393,12 +433,27 @@ export default function RecipeEditor() {
       }
 
       await updateRecipeCalculations(recipeId);
+      
+      // 更新初始数据引用，标记为已保存
+      initialDataRef.current = { recipe: recipeData, menuInfo: menuData };
+      setHasUnsavedChanges(false);
+      setIsSaving(false);
+      
       navigate('/recipes');
     } catch (error) {
       console.error('Failed to save recipe:', error);
       alert('保存失败，请重试');
+      setIsSaving(false);
     }
   };
+
+  // 使用自定义Hook处理未保存更改
+  const {
+    showDialog,
+    handleSaveAndNavigate,
+    handleDiscardAndNavigate,
+    handleCancelNavigation,
+  } = useUnsavedChanges(hasUnsavedChanges, handleSave);
 
   // 阻止表单的Enter键默认提交行为
   const handleFormKeyDown = (e: React.KeyboardEvent) => {
@@ -873,6 +928,32 @@ export default function RecipeEditor() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 未保存更改提示对话框 */}
+      <AlertDialog open={showDialog} onOpenChange={(open) => !open && handleCancelNavigation()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>保存更改？</AlertDialogTitle>
+            <AlertDialogDescription>
+              您有未保存的更改。是否要在离开前保存这些更改？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelNavigation}>
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDiscardAndNavigate}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              不保存
+            </AlertDialogAction>
+            <AlertDialogAction onClick={handleSaveAndNavigate}>
+              保存
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

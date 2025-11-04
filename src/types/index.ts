@@ -30,6 +30,7 @@ export interface Ingredient {
   unitPrice?: number; // 单位价格 (自动计算)
   currentStock?: number; // 当前库存
   minStock?: number; // 最低库存阈值
+  displayOrder?: number; // 展示顺序
   notes?: string;
   createdAt?: Date;
   updatedAt?: Date;
@@ -65,6 +66,7 @@ export interface Recipe {
   totalVolume?: number; // 总容量 (ml)
   calculatedAbv?: number; // 计算的酒精度
   calculatedCost?: number; // 计算的成本
+  displayOrder?: number; // 展示顺序
   tags?: string[]; // 标签
   isFavorite?: boolean; // 是否收藏
   notes?: string; // 制作笔记

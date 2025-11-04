@@ -13,6 +13,7 @@ import SingleRecipeView from '@/pages/SingleRecipeView';
 import VenueManagement from '@/pages/VenueManagement';
 import Analytics from '@/pages/Analytics';
 import Settings from '@/pages/Settings';
+import '@/utils/dbDebug'; // 加载数据库调试工具
 import './App.css';
 
 function App() {

@@ -235,10 +235,22 @@ export default function Ingredients() {
     minStock: undefined,
   });
 
-  const ingredients = useLiveQuery(() => db.ingredients.toArray(), []);
+  const ingredients = useLiveQuery(async () => {
+    const allIngredients = await db.ingredients.toArray();
+    // 按displayOrder排序，如果没有则按id排序
+    return allIngredients.sort((a, b) => {
+      const orderA = a.displayOrder ?? a.id ?? 0;
+      const orderB = b.displayOrder ?? b.id ?? 0;
+      return orderA - orderB;
+    });
+  }, []);
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 拖拽8px后才激活，避免误触
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -256,9 +268,12 @@ export default function Ingredients() {
 
   // 退出排序模式并保存
   const handleExitSortMode = async () => {
-    // 这里可以保存排序顺序到数据库（如果需要持久化）
-    // 目前只是退出排序模式
+    // 保存排序顺序到数据库
+    for (let i = 0; i < sortedIngredients.length; i++) {
+      await db.ingredients.update(sortedIngredients[i].id!, { displayOrder: i });
+    }
     setIsSortMode(false);
+    setSortedIngredients([]);
   };
 
   // 取消排序

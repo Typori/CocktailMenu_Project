@@ -80,6 +80,42 @@ export class CocktailDatabase extends Dexie {
         });
       });
     });
+
+    // 版本3：添加displayOrder索引支持排序功能
+    this.version(3).stores({
+      ingredients: '++id, name, category, currentStock, createdAt, displayOrder',
+      recipes: '++id, name, parentRecipeId, isFavorite, createdAt, displayOrder, *tags, glassType',
+      menuInfo: '++id, recipeId, isAvailable, displayOrder, *flavorTags, drinkDuration',
+      tags: '++id, name',
+      inventoryLogs: '++id, ingredientId, timestamp',
+      makingNotes: '++id, recipeId, timestamp',
+      settings: '++id',
+      venues: '++id, name, createdAt',
+      venueRecipes: '++id, venueId, recipeId, displayOrder, isAvailable',
+    }).upgrade(async tx => {
+      // 为现有数据初始化displayOrder
+      console.log('开始数据库升级到Version 3...');
+      
+      // 升级recipes表
+      const recipes = await tx.table('recipes').toArray();
+      console.log(`找到 ${recipes.length} 个配方`);
+      for (let i = 0; i < recipes.length; i++) {
+        if (recipes[i].displayOrder === undefined) {
+          await tx.table('recipes').update(recipes[i].id!, { displayOrder: recipes[i].id });
+        }
+      }
+      
+      // 升级ingredients表
+      const ingredients = await tx.table('ingredients').toArray();
+      console.log(`找到 ${ingredients.length} 个原料`);
+      for (let i = 0; i < ingredients.length; i++) {
+        if (ingredients[i].displayOrder === undefined) {
+          await tx.table('ingredients').update(ingredients[i].id!, { displayOrder: ingredients[i].id });
+        }
+      }
+      
+      console.log('数据库升级完成！');
+    });
   }
 }
 
