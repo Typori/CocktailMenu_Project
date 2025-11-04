@@ -79,64 +79,59 @@ export default function RecipeViewer() {
   const defaultMenuName = menuInfo?.menuNames?.find(m => m.isDefault)?.name || recipe.name;
 
   return (
-    <div className="relative">
-      {/* 顶部操作栏 - 固定定位 */}
-      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b mb-6">
-        <div className="max-w-5xl mx-auto py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => navigate('/recipes')}
-                className="touch-feedback"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <div>
-                <h2 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-                  {recipe.name}
-                  {recipe.isFavorite && (
-                    <Star className="h-6 w-6 fill-yellow-500 text-yellow-500" />
-                  )}
-                </h2>
-                {recipe.nameEn && (
-                  <p className="text-muted-foreground mt-1">{recipe.nameEn}</p>
-                )}
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleToggleFavorite}
-                className="touch-feedback"
-              >
-                <Star className={`mr-2 h-4 w-4 ${recipe.isFavorite ? 'fill-yellow-500 text-yellow-500' : ''}`} />
-                {recipe.isFavorite ? '取消收藏' : '收藏'}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDuplicate}
-                className="touch-feedback"
-              >
-                <Copy className="mr-2 h-4 w-4" />
-                复制
-              </Button>
-              <Link to={`/recipes/${id}/edit`}>
-                <Button size="sm" className="touch-feedback">
-                  <Edit className="mr-2 h-4 w-4" />
-                  编辑
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
+    <div className="relative pb-6">
+      {/* 固定的操作按钮组 - 右上角 */}
+      <div className="fixed top-4 right-4 z-50 flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleToggleFavorite}
+          className="touch-feedback shadow-lg bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+        >
+          <Star className={`mr-1 h-4 w-4 ${recipe.isFavorite ? 'fill-yellow-500 text-yellow-500' : ''}`} />
+          <span className="hidden sm:inline">{recipe.isFavorite ? '取消收藏' : '收藏'}</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleDuplicate}
+          className="touch-feedback shadow-lg bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+        >
+          <Copy className="mr-1 h-4 w-4" />
+          <span className="hidden sm:inline">复制</span>
+        </Button>
+        <Link to={`/recipes/${id}/edit`}>
+          <Button size="sm" className="touch-feedback shadow-lg">
+            <Edit className="mr-1 h-4 w-4" />
+            <span className="hidden sm:inline">编辑</span>
+          </Button>
+        </Link>
       </div>
 
       {/* 主要内容区域 - 单栏流式布局 */}
-      <div className="space-y-6 max-w-5xl mx-auto">
+      <div className="space-y-6 px-4 pt-6">
+        {/* 标题区域 - 包含返回按钮和配方名称 */}
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate('/recipes')}
+            className="touch-feedback shrink-0"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2 flex-wrap">
+              {recipe.name}
+              {recipe.isFavorite && (
+                <Star className="h-5 w-5 fill-yellow-500 text-yellow-500 shrink-0" />
+              )}
+            </h2>
+            {recipe.nameEn && (
+              <p className="text-sm text-muted-foreground">{recipe.nameEn}</p>
+            )}
+          </div>
+        </div>
         {/* 图片轮播 */}
         {recipe.images && recipe.images.length > 0 && (
           <Card>

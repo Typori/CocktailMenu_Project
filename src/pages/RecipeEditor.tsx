@@ -400,8 +400,21 @@ export default function RecipeEditor() {
     }
   };
 
+  // 阻止表单的Enter键默认提交行为
+  const handleFormKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
+      // 只在非textarea元素上阻止Enter键
+      const target = e.target as HTMLElement;
+      // 如果是在Combobox的输入框中，让Combobox自己处理
+      if (target.getAttribute('role') === 'combobox' || target.closest('[role="combobox"]')) {
+        return;
+      }
+      e.preventDefault();
+    }
+  };
+
   return (
-    <div className="relative">
+    <div className="relative" onKeyDown={handleFormKeyDown}>
       {/* 固定的保存按钮 */}
       <div className="fixed top-4 right-4 z-50">
         <Button onClick={handleSave} className="touch-feedback shadow-lg">

@@ -118,20 +118,20 @@ function SortableIngredientCard({
           </div>
         </CardHeader>
         <CardContent className="space-y-2 py-3">
-          {/* 基本信息 - 更紧凑布局 */}
-          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm">
-            <div className="flex justify-between col-span-2">
-              <span className="text-muted-foreground text-xs">价格:</span>
-              <span className="font-medium text-xs">{formatCurrency(ingredient.price)}</span>
+          {/* 基本信息 - 单行紧凑布局 */}
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+            <div className="flex items-center gap-1">
+              <span className="text-muted-foreground">价格:</span>
+              <span className="font-medium">{formatCurrency(ingredient.price)}</span>
             </div>
-            <div className="flex justify-between col-span-2">
-              <span className="text-muted-foreground text-xs">单价:</span>
-              <span className="font-medium text-xs">{formatCurrency(unitPrice)}/{formatUnit(ingredient.unit)}</span>
+            <div className="flex items-center gap-1">
+              <span className="text-muted-foreground">单价:</span>
+              <span className="font-medium">{formatCurrency(unitPrice)}/{formatUnit(ingredient.unit)}</span>
             </div>
             {ingredient.alcoholContent !== undefined && ingredient.alcoholContent > 0 && (
-              <div className="flex justify-between col-span-2">
-                <span className="text-muted-foreground text-xs">酒精度:</span>
-                <span className="text-xs">{ingredient.alcoholContent}%</span>
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">酒精度:</span>
+                <span className="font-medium">{ingredient.alcoholContent}%</span>
               </div>
             )}
           </div>
@@ -405,131 +405,136 @@ export default function Ingredients() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">原料与库存管理</h2>
-          <p className="text-muted-foreground">
-            {isSortMode ? '拖动卡片重新排序' : '管理你的调酒原料库存和价格'}
-          </p>
+    <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-7rem)] w-full">
+      {/* 固定顶部区域 */}
+      <div className="flex-shrink-0 space-y-6 pb-4">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">原料与库存管理</h2>
+            <p className="text-muted-foreground">
+              {isSortMode ? '拖动卡片重新排序' : '管理你的调酒原料库存和价格'}
+            </p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            {isSortMode ? (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={handleCancelSort} 
+                  className="touch-feedback"
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  取消
+                </Button>
+                <Button 
+                  onClick={handleExitSortMode} 
+                  className="touch-feedback"
+                >
+                  <Check className="mr-2 h-4 w-4" />
+                  完成排序
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={handleEnterSortMode}
+                  className="touch-feedback"
+                  disabled={hasActiveFilters}
+                >
+                  <GripVertical className="mr-2 h-4 w-4" />
+                  排序
+                </Button>
+                <Button onClick={() => handleOpenDialog()} className="touch-feedback">
+                  <Plus className="mr-2 h-4 w-4" />
+                  添加原料
+                </Button>
+              </>
+            )}
+          </div>
         </div>
-        <div className="flex gap-2">
-          {isSortMode ? (
-            <>
-              <Button 
-                variant="outline" 
-                onClick={handleCancelSort} 
-                className="touch-feedback"
-              >
-                <X className="mr-2 h-4 w-4" />
-                取消
-              </Button>
-              <Button 
-                onClick={handleExitSortMode} 
-                className="touch-feedback"
-              >
-                <Check className="mr-2 h-4 w-4" />
-                完成排序
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button 
-                variant="outline" 
-                onClick={handleEnterSortMode}
-                className="touch-feedback"
-                disabled={hasActiveFilters}
-              >
-                <GripVertical className="mr-2 h-4 w-4" />
-                排序
-              </Button>
-              <Button onClick={() => handleOpenDialog()} className="touch-feedback">
-                <Plus className="mr-2 h-4 w-4" />
-                添加原料
-              </Button>
-            </>
-          )}
-        </div>
+
+        {/* 排序模式提示 */}
+        {hasActiveFilters && !isSortMode && (
+          <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900">
+            <CardContent className="py-3">
+              <p className="text-sm text-blue-800 dark:text-blue-200">
+                💡 提示：清除搜索和筛选条件后可以使用拖拽排序功能
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 库存警告 */}
+        {lowStockItems && lowStockItems.length > 0 && (
+          <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-900">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-orange-800 dark:text-orange-200">
+                <AlertTriangle className="h-5 w-5" />
+                库存警告 ({lowStockItems.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {lowStockItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-lg"
+                  >
+                    <div>
+                      <p className="font-medium">{item.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        当前: {item.currentStock}{formatUnit(item.unit)} / 
+                        最低: {item.minStock}{formatUnit(item.unit)}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => handleAdjustStock(item.id!, item.quantity)}
+                    >
+                      补满
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 搜索和筛选栏 - 排序模式下隐藏 */}
+        {!isSortMode && (
+          <div className="flex gap-3 items-center w-full">
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="搜索原料名称..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 w-full"
+              />
+            </div>
+            <Select value={categoryFilter} onValueChange={(value) => setCategoryFilter(value as SpiritType | 'all')}>
+              <SelectTrigger className="w-[180px] shrink-0">
+                <Filter className="mr-2 h-4 w-4 shrink-0" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="end" position="popper" sideOffset={5}>
+                <SelectItem value="all">全部分类 ({ingredients?.length || 0})</SelectItem>
+                {Object.entries(CATEGORY_CONFIG).map(([key, config]) => (
+                  <SelectItem key={key} value={key}>
+                    {config.label} ({getCategoryCount(key as SpiritType)})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
-      {/* 排序模式提示 */}
-      {hasActiveFilters && !isSortMode && (
-        <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900">
-          <CardContent className="py-3">
-            <p className="text-sm text-blue-800 dark:text-blue-200">
-              💡 提示：清除搜索和筛选条件后可以使用拖拽排序功能
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 库存警告 */}
-      {lowStockItems && lowStockItems.length > 0 && (
-        <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-900">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-orange-800 dark:text-orange-200">
-              <AlertTriangle className="h-5 w-5" />
-              库存警告 ({lowStockItems.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {lowStockItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-lg"
-                >
-                  <div>
-                    <p className="font-medium">{item.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      当前: {item.currentStock}{formatUnit(item.unit)} / 
-                      最低: {item.minStock}{formatUnit(item.unit)}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={() => handleAdjustStock(item.id!, item.quantity)}
-                  >
-                    补满
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 搜索和筛选栏 - 排序模式下隐藏 */}
-      {!isSortMode && (
-        <div className="flex gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="搜索原料名称..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <Select value={categoryFilter} onValueChange={(value) => setCategoryFilter(value as SpiritType | 'all')}>
-            <SelectTrigger className="w-40">
-              <Filter className="mr-2 h-4 w-4" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部分类 ({ingredients?.length || 0})</SelectItem>
-              {Object.entries(CATEGORY_CONFIG).map(([key, config]) => (
-                <SelectItem key={key} value={key}>
-                  {config.label} ({getCategoryCount(key as SpiritType)})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      {/* 原料列表 - 更紧凑的间距 */}
-      <DndContext
+      {/* 可滚动内容区域 */}
+      <div className="flex-1 overflow-y-auto space-y-6 min-h-0">
+        {/* 原料列表 - 更紧凑的间距 */}
+        <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragEnd={handleDragEnd}
@@ -538,7 +543,7 @@ export default function Ingredients() {
           items={filteredIngredients?.map(i => i.id!) || []}
           strategy={verticalListSortingStrategy}
         >
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid auto-rows-fr gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             {filteredIngredients?.map((ingredient) => (
               <SortableIngredientCard
                 key={ingredient.id}
@@ -553,25 +558,26 @@ export default function Ingredients() {
             ))}
           </div>
         </SortableContext>
-      </DndContext>
+        </DndContext>
 
-      {filteredIngredients?.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">
-            {searchTerm || categoryFilter !== 'all' ? '没有找到符合条件的原料' : '还没有原料'}
-          </p>
-          <Button
-            variant="link"
-            onClick={() => {
-              setSearchTerm('');
-              setCategoryFilter('all');
-            }}
-            className="mt-2"
-          >
-            清除筛选
-          </Button>
-        </div>
-      )}
+        {filteredIngredients?.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">
+              {searchTerm || categoryFilter !== 'all' ? '没有找到符合条件的原料' : '还没有原料'}
+            </p>
+            <Button
+              variant="link"
+              onClick={() => {
+                setSearchTerm('');
+                setCategoryFilter('all');
+              }}
+              className="mt-2"
+            >
+              清除筛选
+            </Button>
+          </div>
+        )}
+      </div>
 
       {/* 添加/编辑对话框 */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

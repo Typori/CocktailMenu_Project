@@ -1,10 +1,22 @@
 import { useState, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
 import { Settings as SettingsIcon, Palette, Database, Bell, Download, Upload, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { exportToJson, importFromJson } from '@/utils/export';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { db } from '@/db/database';
+import { useTheme } from '@/hooks/useTheme';
+import { useNotificationSettings } from '@/hooks/useNotificationSettings';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export default function Settings() {
   const [isExporting, setIsExporting] = useState(false);
@@ -12,6 +24,9 @@ export default function Settings() {
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const { theme, setTheme } = useTheme();
+  const { settings: notificationSettings, updateSettings: updateNotificationSettings } = useNotificationSettings();
 
   const handleExport = async () => {
     try {
@@ -132,10 +147,20 @@ export default function Settings() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <p className="text-sm font-medium">主题模式</p>
-              <p className="text-sm text-muted-foreground">
-                当前使用系统主题设置
+            <div className="space-y-3">
+              <Label htmlFor="theme-select">主题模式</Label>
+              <Select value={theme} onValueChange={(value) => setTheme(value as 'light' | 'dark' | 'system')}>
+                <SelectTrigger id="theme-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="light">浅色模式</SelectItem>
+                  <SelectItem value="dark">深色模式</SelectItem>
+                  <SelectItem value="system">跟随系统</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {theme === 'system' ? '当前跟随系统主题设置' : `当前使用${theme === 'light' ? '浅色' : '深色'}主题`}
               </p>
             </div>
           </CardContent>
@@ -226,12 +251,45 @@ export default function Settings() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <p className="text-sm font-medium">库存警告</p>
-              <p className="text-sm text-muted-foreground">
-                当原料库存低于最低值时提醒
-              </p>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="low-stock-alert">库存警告</Label>
+                <p className="text-sm text-muted-foreground">
+                  当原料库存低于设定阈值时显示警告
+                </p>
+              </div>
+              <Switch
+                id="low-stock-alert"
+                checked={notificationSettings.lowStockAlert}
+                onCheckedChange={(checked) => 
+                  updateNotificationSettings({ lowStockAlert: checked })
+                }
+              />
             </div>
+            
+            {notificationSettings.lowStockAlert && (
+              <div className="space-y-2 pt-2 border-t">
+                <Label htmlFor="stock-threshold">库存警告阈值 (%)</Label>
+                <div className="flex items-center gap-3">
+                  <Input
+                    id="stock-threshold"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={notificationSettings.lowStockThreshold}
+                    onChange={(e) => 
+                      updateNotificationSettings({ 
+                        lowStockThreshold: Number(e.target.value) 
+                      })
+                    }
+                    className="w-24"
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    当库存低于最低库存的 {notificationSettings.lowStockThreshold}% 时提醒
+                  </span>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

@@ -493,35 +493,38 @@ export default function VenueManagement() {
   const selectedVenue = venues.find(v => v.id === selectedVenueId);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <Store className="h-8 w-8" />
-            上架酒款
-          </h2>
-          <p className="text-muted-foreground mt-2">
-            {isSortMode ? '拖动卡片重新排序' : '为不同店面管理上架的酒款'}
-          </p>
+    <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-7rem)]">
+      {/* 固定顶部区域 */}
+      <div className="flex-shrink-0 space-y-6 pb-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+              <Store className="h-8 w-8" />
+              上架酒款
+            </h2>
+            <p className="text-muted-foreground mt-2">
+              {isSortMode ? '拖动卡片重新排序' : '为不同店面管理上架的酒款'}
+            </p>
+          </div>
+          <Button onClick={() => handleOpenVenueDialog()} variant="outline" className="touch-feedback">
+            <Plus className="mr-2 h-4 w-4" />
+            新建店面
+          </Button>
         </div>
-        <Button onClick={() => handleOpenVenueDialog()} variant="outline" className="touch-feedback">
-          <Plus className="mr-2 h-4 w-4" />
-          新建店面
-        </Button>
-      </div>
 
-      {/* 店面标签页 */}
-      <Tabs value={String(selectedVenueId)} onValueChange={(value) => setSelectedVenueId(Number(value))}>
+        {/* 店面标签页 */}
         <div className="flex items-center gap-3">
-          <TabsList className="flex-1 justify-start overflow-x-auto">
-            {venues.map((venue) => (
-              <TabsTrigger key={venue.id} value={String(venue.id)} className="relative">
-                {venue.name}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          <Tabs value={String(selectedVenueId)} onValueChange={(value) => setSelectedVenueId(Number(value))} className="flex-1">
+            <TabsList className="w-full justify-start overflow-x-auto">
+              {venues.map((venue) => (
+                <TabsTrigger key={venue.id} value={String(venue.id)} className="relative">
+                  {venue.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
           {selectedVenue && (
-            <div className="flex gap-2">
+            <div className="flex gap-2 shrink-0">
               <Button
                 size="sm"
                 variant="outline"
@@ -541,72 +544,75 @@ export default function VenueManagement() {
             </div>
           )}
         </div>
+      </div>
 
-        {venues.map((venue) => (
-          <TabsContent key={venue.id} value={String(venue.id)} className="space-y-6 mt-6">
-            {/* 操作栏 */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">
-                  {filteredVenueRecipes?.length || 0} 款酒
-                </Badge>
-                {venue.address && (
-                  <span className="text-sm text-muted-foreground">{venue.address}</span>
-                )}
+      {/* 可滚动内容区域 - 包含所有标签页内容 */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        <Tabs value={String(selectedVenueId)} onValueChange={(value) => setSelectedVenueId(Number(value))}>
+          {venues.map((venue) => (
+            <TabsContent key={venue.id} value={String(venue.id)} className="mt-0 space-y-6 pt-6">
+              {/* 操作栏 */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">
+                    {filteredVenueRecipes?.length || 0} 款酒
+                  </Badge>
+                  {venue.address && (
+                    <span className="text-sm text-muted-foreground">{venue.address}</span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  {isSortMode ? (
+                    <>
+                      <Button 
+                        variant="outline" 
+                        onClick={handleCancelSort} 
+                        className="touch-feedback"
+                      >
+                        <X className="mr-2 h-4 w-4" />
+                        取消
+                      </Button>
+                      <Button 
+                        onClick={handleExitSortMode} 
+                        className="touch-feedback"
+                      >
+                        <Check className="mr-2 h-4 w-4" />
+                        完成排序
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button 
+                        variant="outline" 
+                        onClick={handleEnterSortMode}
+                        className="touch-feedback"
+                        disabled={hasActiveFilters}
+                      >
+                        <GripVertical className="mr-2 h-4 w-4" />
+                        排序
+                      </Button>
+                      <Button onClick={() => setIsAddRecipeDialogOpen(true)} className="touch-feedback">
+                        <Plus className="mr-2 h-4 w-4" />
+                        添加酒款
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
-              <div className="flex gap-2">
-                {isSortMode ? (
-                  <>
-                    <Button 
-                      variant="outline" 
-                      onClick={handleCancelSort} 
-                      className="touch-feedback"
-                    >
-                      <X className="mr-2 h-4 w-4" />
-                      取消
-                    </Button>
-                    <Button 
-                      onClick={handleExitSortMode} 
-                      className="touch-feedback"
-                    >
-                      <Check className="mr-2 h-4 w-4" />
-                      完成排序
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button 
-                      variant="outline" 
-                      onClick={handleEnterSortMode}
-                      className="touch-feedback"
-                      disabled={hasActiveFilters}
-                    >
-                      <GripVertical className="mr-2 h-4 w-4" />
-                      排序
-                    </Button>
-                    <Button onClick={() => setIsAddRecipeDialogOpen(true)} className="touch-feedback">
-                      <Plus className="mr-2 h-4 w-4" />
-                      添加酒款
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
 
-            {/* 排序模式提示 */}
-            {hasActiveFilters && !isSortMode && (
-              <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900">
-                <CardContent className="py-3">
-                  <p className="text-sm text-blue-800 dark:text-blue-200">
-                    💡 提示：清除搜索和筛选条件后可以使用拖拽排序功能
-                  </p>
-                </CardContent>
-              </Card>
-            )}
+              {/* 排序模式提示 */}
+              {hasActiveFilters && !isSortMode && (
+                <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900">
+                  <CardContent className="py-3">
+                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                      💡 提示：清除搜索和筛选条件后可以使用拖拽排序功能
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
 
-            {/* 搜索和筛选栏 */}
-            {!isSortMode && (
-              <div className="space-y-3">
+              {/* 搜索和筛选栏 */}
+              {!isSortMode && (
                 <div className="flex gap-3">
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -627,9 +633,10 @@ export default function VenueManagement() {
                     {hasActiveFilters && <Badge variant="secondary" className="ml-2">•</Badge>}
                   </Button>
                 </div>
+              )}
 
-                {/* 筛选器 */}
-                {showFilters && (
+              {/* 筛选器 */}
+              {!isSortMode && showFilters && (
                   <Card>
                     <CardContent className="pt-6">
                       <div className="grid grid-cols-3 gap-4">
@@ -710,63 +717,62 @@ export default function VenueManagement() {
                     </CardContent>
                   </Card>
                 )}
-              </div>
-            )}
 
-            {/* 酒款列表 */}
-            {filteredVenueRecipes && filteredVenueRecipes.length > 0 ? (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-              >
-                <SortableContext
-                  items={filteredVenueRecipes.map(vr => vr.id!) || []}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {filteredVenueRecipes.map((vr) => (
-                      <SortableVenueRecipeCard
-                        key={vr.id}
-                        recipe={vr.recipe}
-                        venueRecipe={vr}
-                        isSortMode={isSortMode}
-                        onToggleAvailable={handleToggleAvailable}
-                        onRemove={handleRemoveRecipe}
-                        onEditPrice={handleOpenPriceDialog}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
-            ) : (
-              <Card className="border-dashed">
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <p className="text-muted-foreground mb-4">
-                    {searchTerm || hasActiveFilters ? '没有找到符合条件的酒款' : '还没有添加酒款'}
-                  </p>
-                  {searchTerm || hasActiveFilters ? (
-                    <Button
-                      variant="link"
-                      onClick={() => {
-                        setSearchTerm('');
-                        setFilters({});
-                      }}
+                {/* 酒款列表 */}
+                {filteredVenueRecipes && filteredVenueRecipes.length > 0 ? (
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <SortableContext
+                      items={filteredVenueRecipes.map(vr => vr.id!) || []}
+                      strategy={verticalListSortingStrategy}
                     >
-                      清除筛选
-                    </Button>
-                  ) : (
-                    <Button onClick={() => setIsAddRecipeDialogOpen(true)} className="touch-feedback">
-                      <Plus className="mr-2 h-4 w-4" />
-                      添加第一款酒
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-        ))}
-      </Tabs>
+                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {filteredVenueRecipes.map((vr) => (
+                          <SortableVenueRecipeCard
+                            key={vr.id}
+                            recipe={vr.recipe}
+                            venueRecipe={vr}
+                            isSortMode={isSortMode}
+                            onToggleAvailable={handleToggleAvailable}
+                            onRemove={handleRemoveRecipe}
+                            onEditPrice={handleOpenPriceDialog}
+                          />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+                ) : (
+                  <Card className="border-dashed">
+                    <CardContent className="flex flex-col items-center justify-center py-12">
+                      <p className="text-muted-foreground mb-4">
+                        {searchTerm || hasActiveFilters ? '没有找到符合条件的酒款' : '还没有添加酒款'}
+                      </p>
+                      {searchTerm || hasActiveFilters ? (
+                        <Button
+                          variant="link"
+                          onClick={() => {
+                            setSearchTerm('');
+                            setFilters({});
+                          }}
+                        >
+                          清除筛选
+                        </Button>
+                      ) : (
+                        <Button onClick={() => setIsAddRecipeDialogOpen(true)} className="touch-feedback">
+                          <Plus className="mr-2 h-4 w-4" />
+                          添加第一款酒
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+            </TabsContent>
+          ))}
+        </Tabs>
+      </div>
 
       {/* 店面对话框 */}
       <Dialog open={isVenueDialogOpen} onOpenChange={setIsVenueDialogOpen}>

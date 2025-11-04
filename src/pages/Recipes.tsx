@@ -303,69 +303,70 @@ export default function Recipes() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">配方管理</h2>
-          <p className="text-muted-foreground">
-            {isSortMode ? '拖动卡片重新排序' : '创建和管理你的调酒配方'}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {isSortMode ? (
-            <>
-              <Button 
-                variant="outline" 
-                onClick={handleCancelSort} 
-                className="touch-feedback"
-              >
-                <X className="mr-2 h-4 w-4" />
-                取消
-              </Button>
-              <Button 
-                onClick={handleExitSortMode} 
-                className="touch-feedback"
-              >
-                <Check className="mr-2 h-4 w-4" />
-                完成排序
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button 
-                variant="outline" 
-                onClick={handleEnterSortMode}
-                className="touch-feedback"
-                disabled={hasActiveFilters}
-              >
-                <GripVertical className="mr-2 h-4 w-4" />
-                排序
-              </Button>
-              <Link to="/recipes/new">
-                <Button className="touch-feedback">
-                  <Plus className="mr-2 h-4 w-4" />
-                  创建配方
-                </Button>
-              </Link>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* 排序模式提示 */}
-      {hasActiveFilters && !isSortMode && (
-        <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900">
-          <CardContent className="py-3">
-            <p className="text-sm text-blue-800 dark:text-blue-200">
-              💡 提示：清除搜索和筛选条件后可以使用拖拽排序功能
+    <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-7rem)]">
+      {/* 固定顶部区域 */}
+      <div className="flex-shrink-0 space-y-6 pb-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">配方管理</h2>
+            <p className="text-muted-foreground">
+              {isSortMode ? '拖动卡片重新排序' : '创建和管理你的调酒配方'}
             </p>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+          <div className="flex gap-2">
+            {isSortMode ? (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={handleCancelSort} 
+                  className="touch-feedback"
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  取消
+                </Button>
+                <Button 
+                  onClick={handleExitSortMode} 
+                  className="touch-feedback"
+                >
+                  <Check className="mr-2 h-4 w-4" />
+                  完成排序
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={handleEnterSortMode}
+                  className="touch-feedback"
+                  disabled={hasActiveFilters}
+                >
+                  <GripVertical className="mr-2 h-4 w-4" />
+                  排序
+                </Button>
+                <Link to="/recipes/new">
+                  <Button className="touch-feedback">
+                    <Plus className="mr-2 h-4 w-4" />
+                    创建配方
+                  </Button>
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
 
-      {/* 搜索和筛选栏 - 排序模式下隐藏 */}
-      {!isSortMode && (
-        <div className="space-y-3">
+        {/* 排序模式提示 */}
+        {hasActiveFilters && !isSortMode && (
+          <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900">
+            <CardContent className="py-3">
+              <p className="text-sm text-blue-800 dark:text-blue-200">
+                💡 提示：清除搜索和筛选条件后可以使用拖拽排序功能
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 搜索和筛选栏 - 排序模式下隐藏 */}
+        {!isSortMode && (
           <div className="flex gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -386,9 +387,13 @@ export default function Recipes() {
               {hasActiveFilters && <Badge variant="secondary" className="ml-2">•</Badge>}
             </Button>
           </div>
+        )}
+      </div>
 
+      {/* 可滚动内容区域 */}
+      <div className="flex-1 overflow-y-auto space-y-6 min-h-0">
         {/* 筛选器 */}
-        {showFilters && (
+        {!isSortMode && showFilters && (
           <Card>
             <CardContent className="pt-6">
               <div className="grid grid-cols-3 gap-4">
@@ -468,57 +473,56 @@ export default function Recipes() {
               )}
             </CardContent>
           </Card>
-          )}
-        </div>
-      )}
+        )}
 
-      {/* 配方列表 */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext
-          items={filteredRecipes?.map(r => r.id!) || []}
-          strategy={verticalListSortingStrategy}
+        {/* 配方列表 */}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
         >
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredRecipes?.map((recipe) => (
-              <SortableRecipeCard
-                key={recipe.id}
-                recipe={recipe}
-                isSortMode={isSortMode}
-                onToggleFavorite={handleToggleFavorite}
-                onDuplicate={handleDuplicate}
-                onDelete={handleDelete}
-              />
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
+          <SortableContext
+            items={filteredRecipes?.map(r => r.id!) || []}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {filteredRecipes?.map((recipe) => (
+                <SortableRecipeCard
+                  key={recipe.id}
+                  recipe={recipe}
+                  isSortMode={isSortMode}
+                  onToggleFavorite={handleToggleFavorite}
+                  onDuplicate={handleDuplicate}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
 
-      {filteredRecipes?.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">
-            {searchTerm ? '没有找到配方' : '还没有配方'}
-          </p>
-          {searchTerm ? (
-            <Button
-              variant="link"
-              onClick={() => setSearchTerm('')}
-              className="mt-2"
-            >
-              清除搜索
-            </Button>
-          ) : (
-            <Link to="/recipes/new">
-              <Button variant="link" className="mt-2">
-                创建第一个配方
+        {filteredRecipes?.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">
+              {searchTerm ? '没有找到配方' : '还没有配方'}
+            </p>
+            {searchTerm ? (
+              <Button
+                variant="link"
+                onClick={() => setSearchTerm('')}
+                className="mt-2"
+              >
+                清除搜索
               </Button>
-            </Link>
-          )}
-        </div>
-      )}
+            ) : (
+              <Link to="/recipes/new">
+                <Button variant="link" className="mt-2">
+                  创建第一个配方
+                </Button>
+              </Link>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

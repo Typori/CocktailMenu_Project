@@ -43,10 +43,13 @@ export function Combobox({
     )
   }, [options, searchValue])
 
-  // 处理Enter键选择第一个匹配项
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  // 处理Enter键选择第一个匹配项 - 在输入框层面处理
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault()
+      e.stopPropagation()
+      
+      // 选择第一个匹配项
       if (filteredOptions.length > 0) {
         onValueChange(filteredOptions[0].value)
         setOpen(false)
@@ -77,20 +80,21 @@ export function Combobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-full p-0">
-        <Command onKeyDown={handleKeyDown}>
+        <Command shouldFilter={false}>
           <CommandInput 
             placeholder={searchPlaceholder}
             value={searchValue}
             onValueChange={setSearchValue}
+            onKeyDown={handleInputKeyDown}
           />
           <CommandEmpty>{emptyText}</CommandEmpty>
           <CommandGroup className="max-h-64 overflow-auto">
             {filteredOptions.map((option) => (
               <CommandItem
                 key={option.value}
-                value={option.label}
-                onSelect={() => {
-                  onValueChange(option.value)
+                value={option.value}
+                onSelect={(currentValue) => {
+                  onValueChange(currentValue)
                   setOpen(false)
                   setSearchValue("")
                 }}

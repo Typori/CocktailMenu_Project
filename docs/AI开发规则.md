@@ -102,6 +102,94 @@ const handleSave = async () => {
 - ❌ 避免重写整个文件（除非必要）
 - ❌ 避免创建重复功能的文件
 
+### 4. UI/UX 设计规范
+
+#### 固定顶部设计模式
+
+对于有滚动内容的页面，应遵循以下固定顶部设计原则：
+
+**查看页面（Viewer）**：
+```tsx
+// 使用 sticky 定位固定标题和操作按钮
+<div className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b mb-6">
+  <div className="max-w-5xl mx-auto py-3">
+    <div className="flex items-center justify-between gap-4">
+      {/* 返回按钮 + 标题 */}
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        <Button variant="ghost" size="icon">
+          <ArrowLeft />
+        </Button>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-2xl font-bold truncate">标题</h2>
+        </div>
+      </div>
+      {/* 操作按钮组 */}
+      <div className="flex gap-2 shrink-0">
+        <Button>收藏</Button>
+        <Button>复制</Button>
+        <Button>编辑</Button>
+      </div>
+    </div>
+  </div>
+</div>
+```
+
+**编辑页面（Editor）**：
+```tsx
+// 使用 fixed 定位固定保存按钮
+<div className="fixed top-4 right-4 z-50">
+  <Button className="shadow-lg">
+    <Save className="mr-2 h-4 w-4" />
+    保存
+  </Button>
+</div>
+```
+
+**设计要点**：
+- ✅ 查看页面使用 `sticky` 定位，保持标题和操作按钮可见
+- ✅ 编辑页面使用 `fixed` 定位保存按钮，方便随时保存
+- ✅ 使用 `backdrop-blur` 和半透明背景提升视觉效果
+- ✅ 使用 `truncate` 防止长标题溢出
+- ✅ 使用 `shrink-0` 防止按钮被压缩
+- ✅ 移动端响应式：使用 `hidden sm:inline` 隐藏按钮文字，只显示图标
+
+#### 表单Enter键处理规范
+
+为防止Enter键触发表单提交导致页面滚动，应遵循以下规范：
+
+**Combobox组件**：
+```tsx
+// 在Command和CommandInput上都处理Enter键
+const handleKeyDown = (e: React.KeyboardEvent) => {
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    e.stopPropagation() // 阻止事件冒泡
+    // 选择第一个匹配项
+  }
+}
+
+const handleInputKeyDown = (e: React.KeyboardEvent) => {
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+}
+```
+
+**表单容器**：
+```tsx
+// 在表单容器上阻止Enter键默认行为
+const handleFormKeyDown = (e: React.KeyboardEvent) => {
+  if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
+    e.preventDefault()
+  }
+}
+
+<div onKeyDown={handleFormKeyDown}>
+  {/* 表单内容 */}
+</div>
+```
+
 ---
 
 ## 🔄 开发工作流
