@@ -84,13 +84,12 @@ function SortableVenueRecipeCard({
 
   return (
     <div ref={setNodeRef} style={style}>
-      <Card className={`card-hover relative ${isSortMode ? 'cursor-move' : ''} ${!venueRecipe.isAvailable ? 'opacity-60' : ''}`}>
+      <Card 
+        className={`card-hover relative ${isSortMode ? 'cursor-move select-none' : ''} ${!venueRecipe.isAvailable ? 'opacity-60' : ''}`}
+        {...(isSortMode ? { ...attributes, ...listeners } : {})}
+      >
         {isSortMode && (
-          <div 
-            {...attributes} 
-            {...listeners} 
-            className="absolute top-4 left-4 cursor-grab active:cursor-grabbing z-10"
-          >
+          <div className="absolute top-4 left-4 z-10 pointer-events-none">
             <GripVertical className="h-5 w-5 text-muted-foreground" />
           </div>
         )}
@@ -121,7 +120,7 @@ function SortableVenueRecipeCard({
           )}
         </CardHeader>
         
-        <CardContent className="space-y-3">
+        <CardContent className={`space-y-3 ${isSortMode ? 'pointer-events-none' : ''}`}>
           {/* 配方信息 */}
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div className="flex items-center gap-1">

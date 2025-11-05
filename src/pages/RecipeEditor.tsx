@@ -387,19 +387,12 @@ export default function RecipeEditor() {
     setMenuInfo({ ...menuInfo, menuNames: newMenuNames });
   };
 
-  const handleSave = async () => {
+  const handleSave = async (skipNavigation = false) => {
     try {
       setIsSaving(true);
       
       if (!recipe.name) {
         alert('请输入配方名称');
-        setIsSaving(false);
-        return;
-      }
-
-      // 确保至少有一个菜单名称
-      if (!menuInfo.menuNames || menuInfo.menuNames.length === 0 || !menuInfo.menuNames[0].name) {
-        alert('请至少输入一个菜单名称');
         setIsSaving(false);
         return;
       }
@@ -439,7 +432,10 @@ export default function RecipeEditor() {
       setHasUnsavedChanges(false);
       setIsSaving(false);
       
-      navigate('/recipes');
+      // 只在不跳过导航时才导航
+      if (!skipNavigation) {
+        navigate('/recipes');
+      }
     } catch (error) {
       console.error('Failed to save recipe:', error);
       alert('保存失败，请重试');
@@ -453,7 +449,11 @@ export default function RecipeEditor() {
     handleSaveAndNavigate,
     handleDiscardAndNavigate,
     handleCancelNavigation,
-  } = useUnsavedChanges(hasUnsavedChanges, handleSave);
+    allowNavigation,
+    resetNavigation,
+  } = useUnsavedChanges(hasUnsavedChanges, async () => {
+    await handleSave(true); // 传入true跳过导航，让hook处理导航
+  });
 
   // 阻止表单的Enter键默认提交行为
   const handleFormKeyDown = (e: React.KeyboardEvent) => {
@@ -468,13 +468,24 @@ export default function RecipeEditor() {
     }
   };
 
+  // 直接保存并导航的处理函数
+  const handleDirectSave = async () => {
+    try {
+      allowNavigation(); // 允许导航，不触发拦截
+      await handleSave(false); // 直接保存并导航
+    } catch (error) {
+      resetNavigation(); // 如果保存失败，重置导航标志
+      throw error;
+    }
+  };
+
   return (
     <div className="relative" onKeyDown={handleFormKeyDown}>
       {/* 固定的保存按钮 */}
       <div className="fixed top-4 right-4 z-50">
-        <Button onClick={handleSave} className="touch-feedback shadow-lg">
+        <Button onClick={handleDirectSave} disabled={isSaving} className="touch-feedback shadow-lg">
           <Save className="mr-2 h-4 w-4" />
-          保存
+          {isSaving ? '保存中...' : '保存'}
         </Button>
       </div>
 

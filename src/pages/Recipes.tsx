@@ -66,18 +66,17 @@ function SortableRecipeCard({
 
   return (
     <div ref={setNodeRef} style={style}>
-      <Card className={`card-hover relative ${isSortMode ? 'cursor-move' : ''}`}>
+      <Card 
+        className={`card-hover relative ${isSortMode ? 'cursor-move select-none' : ''}`}
+        {...(isSortMode ? { ...attributes, ...listeners } : {})}
+      >
         {isSortMode && (
-          <div 
-            {...attributes} 
-            {...listeners} 
-            className="absolute top-4 left-4 cursor-grab active:cursor-grabbing z-10"
-          >
+          <div className="absolute top-4 left-4 z-10 pointer-events-none">
             <GripVertical className="h-5 w-5 text-muted-foreground" />
           </div>
         )}
-        <Link to={`/recipes/${recipe.id}`}>
-          <CardHeader className={`pb-3 cursor-pointer hover:bg-muted/50 transition-colors rounded-t-lg ${isSortMode ? 'pl-12' : ''}`}>
+        {isSortMode ? (
+          <CardHeader className="pb-3 pl-12">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <CardTitle className="text-xl flex items-center gap-2">
@@ -100,9 +99,35 @@ function SortableRecipeCard({
               </div>
             )}
           </CardHeader>
-        </Link>
+        ) : (
+          <Link to={`/recipes/${recipe.id}`}>
+            <CardHeader className="pb-3 cursor-pointer hover:bg-muted/50 transition-colors rounded-t-lg">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    <span className="truncate">{recipe.name}</span>
+                    {recipe.isFavorite && (
+                      <Star className="h-4 w-4 fill-yellow-500 text-yellow-500 flex-shrink-0" />
+                    )}
+                  </CardTitle>
+                </div>
+              </div>
+              
+              {/* 风味标签 */}
+              {recipe.menuInfo?.flavorTags && recipe.menuInfo.flavorTags.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {recipe.menuInfo.flavorTags.map((tag: FlavorTag) => (
+                    <Badge key={tag} variant="secondary" className="text-xs">
+                      {getFlavorTagLabel(tag)}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </CardHeader>
+          </Link>
+        )}
         
-        <CardContent className="space-y-3">
+        <CardContent className={`space-y-3 ${isSortMode ? 'pointer-events-none' : ''}`}>
           {/* 配方信息 */}
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div className="flex items-center gap-1">

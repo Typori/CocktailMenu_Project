@@ -75,14 +75,16 @@ export function useUnsavedChanges(
 
   const handleSaveAndNavigate = useCallback(async () => {
     try {
-      await onSave();
       isNavigatingRef.current = true;
       setShowDialog(false);
+      await onSave();
       if (pendingNavigation) {
         setTimeout(() => {
           navigate(pendingNavigation);
           isNavigatingRef.current = false;
         }, 0);
+      } else {
+        isNavigatingRef.current = false;
       }
     } catch (error) {
       console.error('Failed to save:', error);
@@ -107,10 +109,22 @@ export function useUnsavedChanges(
     setPendingNavigation(null);
   }, []);
 
+  // 允许外部设置导航标志，用于直接保存时跳过拦截
+  const allowNavigation = useCallback(() => {
+    isNavigatingRef.current = true;
+  }, []);
+
+  // 重置导航标志
+  const resetNavigation = useCallback(() => {
+    isNavigatingRef.current = false;
+  }, []);
+
   return {
     showDialog,
     handleSaveAndNavigate,
     handleDiscardAndNavigate,
     handleCancelNavigation,
+    allowNavigation,
+    resetNavigation,
   };
 }

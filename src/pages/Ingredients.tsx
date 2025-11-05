@@ -98,11 +98,14 @@ function SortableIngredientCard({
 
   return (
     <div ref={setNodeRef} style={style}>
-      <Card className={`card-hover ${isLowStock ? 'border-orange-200' : ''} ${isSortMode ? 'cursor-move' : ''}`}>
+      <Card 
+        className={`card-hover ${isLowStock ? 'border-orange-200' : ''} ${isSortMode ? 'cursor-move select-none' : ''}`}
+        {...(isSortMode ? { ...attributes, ...listeners } : {})}
+      >
         <CardHeader>
           <div className="flex items-start justify-between gap-2">
             {isSortMode && (
-              <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing pt-1">
+              <div className="pt-1 pointer-events-none">
                 <GripVertical className="h-5 w-5 text-muted-foreground" />
               </div>
             )}
@@ -117,7 +120,7 @@ function SortableIngredientCard({
             </Badge>
           </div>
         </CardHeader>
-        <CardContent className="space-y-2 py-3">
+        <CardContent className={`space-y-2 py-3 ${isSortMode ? 'pointer-events-none' : ''}`}>
           {/* 基本信息 - 单行紧凑布局 */}
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
             <div className="flex items-center gap-1">
