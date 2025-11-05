@@ -202,3 +202,40 @@ export interface VenueRecipe {
   createdAt?: Date;
   updatedAt?: Date;
 }
+
+// 全局原料主数据接口
+export interface IngredientMaster {
+  id?: number;
+  name: string;
+  nameEn?: string;
+  category: SpiritType;
+  price: number; // 总价格
+  quantity: number; // 数量
+  unit: Unit; // 单位
+  alcoholContent?: number; // 酒精度 (0-100)
+  wastageRate?: number; // 损耗率 (0-100)，默认5%
+  unitPrice?: number; // 单位价格 (自动计算)
+  displayOrder?: number; // 展示顺序
+  notes?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+// 店面原料库接口（含价格、库存、供应商等店面特定信息）
+export interface VenueIngredient {
+  id?: number;
+  venueId: number;
+  ingredientMasterId: number;
+  ingredientName?: string; // 冗余字段，方便显示
+  price: number; // 总价格
+  quantity: number; // 数量
+  wastageRate?: number; // 损耗率 (0-100)，默认5%
+  unitPrice?: number; // 单位价格 (自动计算)
+  currentStock?: number; // 当前库存
+  minStock?: number; // 最低库存阈值
+  supplier?: string; // 供应商
+  displayOrder?: number; // 展示顺序
+  notes?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}

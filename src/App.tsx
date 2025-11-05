@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import { VenueProvider } from '@/contexts/VenueContext';
 import { db, initializeDefaultSettings, initializeSampleData } from '@/db/database';
 import Layout from '@/components/Layout';
 import Dashboard from '@/pages/Dashboard';
 import Ingredients from '@/pages/Ingredients';
+import IngredientMaster from '@/pages/IngredientMaster';
 import Recipes from '@/pages/Recipes';
 import RecipeEditor from '@/pages/RecipeEditor';
 import RecipeViewer from '@/pages/RecipeViewer';
@@ -63,24 +65,27 @@ function App() {
 
   return (
     <ThemeProvider>
-      <Router>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="ingredients" element={<Ingredients />} />
-            <Route path="recipes" element={<Recipes />} />
-            <Route path="recipes/new" element={<RecipeEditor />} />
-            <Route path="recipes/:id" element={<RecipeViewer />} />
-            <Route path="recipes/:id/edit" element={<RecipeEditor />} />
-            <Route path="menu" element={<MenuDisplay />} />
-            <Route path="menu/:id" element={<SingleRecipeView />} />
-            <Route path="venues" element={<VenueManagement />} />
-            <Route path="analytics" element={<Analytics />} />
-            <Route path="settings" element={<Settings />} />
-          </Route>
-        </Routes>
-      </Router>
+      <VenueProvider>
+        <Router>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="ingredients" element={<Ingredients />} />
+              <Route path="ingredient-master" element={<IngredientMaster />} />
+              <Route path="recipes" element={<Recipes />} />
+              <Route path="recipes/new" element={<RecipeEditor />} />
+              <Route path="recipes/:id" element={<RecipeViewer />} />
+              <Route path="recipes/:id/edit" element={<RecipeEditor />} />
+              <Route path="menu" element={<MenuDisplay />} />
+              <Route path="menu/:id" element={<SingleRecipeView />} />
+              <Route path="venues" element={<VenueManagement />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="settings" element={<Settings />} />
+            </Route>
+          </Routes>
+        </Router>
+      </VenueProvider>
     </ThemeProvider>
   );
 }

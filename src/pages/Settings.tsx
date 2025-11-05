@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -8,7 +9,7 @@ import { Settings as SettingsIcon, Palette, Database, Bell, Download, Upload, Al
 import { exportToJson, importFromJson } from '@/utils/export';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { db } from '@/db/database';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useNotificationSettings } from '@/hooks/useNotificationSettings';
 import {
   Select,
@@ -19,6 +20,9 @@ import {
 } from '@/components/ui/select';
 
 export default function Settings() {
+  // 滚动位置恢复
+  useScrollRestoration();
+  
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
@@ -149,18 +153,18 @@ export default function Settings() {
           <CardContent className="space-y-4">
             <div className="space-y-3">
               <Label htmlFor="theme-select">主题模式</Label>
-              <Select value={theme} onValueChange={(value) => setTheme(value as 'light' | 'dark' | 'system')}>
+              <Select value={theme} onValueChange={(value) => setTheme(value as 'light' | 'dark' | 'auto')}>
                 <SelectTrigger id="theme-select">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="light">浅色模式</SelectItem>
                   <SelectItem value="dark">深色模式</SelectItem>
-                  <SelectItem value="system">跟随系统</SelectItem>
+                  <SelectItem value="auto">跟随系统</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                {theme === 'system' ? '当前跟随系统主题设置' : `当前使用${theme === 'light' ? '浅色' : '深色'}主题`}
+                {theme === 'auto' ? '当前跟随系统主题设置' : `当前使用${theme === 'light' ? '浅色' : '深色'}主题`}
               </p>
             </div>
           </CardContent>

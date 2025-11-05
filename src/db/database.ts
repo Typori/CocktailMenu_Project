@@ -9,6 +9,8 @@ import {
   AppSettings,
   Venue,
   VenueRecipe,
+  IngredientMaster,
+  VenueIngredient,
 } from '@/types';
 
 export class CocktailDatabase extends Dexie {
@@ -21,6 +23,8 @@ export class CocktailDatabase extends Dexie {
   settings!: Table<AppSettings & { id: number }, number>;
   venues!: Table<Venue, number>;
   venueRecipes!: Table<VenueRecipe, number>;
+  ingredientMaster!: Table<IngredientMaster, number>;
+  venueIngredients!: Table<VenueIngredient, number>;
 
   constructor() {
     super('CocktailMenuDB');
@@ -115,6 +119,111 @@ export class CocktailDatabase extends Dexie {
       }
       
       console.log('数据库升级完成！');
+    });
+
+    // 版本4：添加全局原料主数据和店面原料库
+    this.version(4).stores({
+      ingredients: '++id, name, category, currentStock, createdAt, displayOrder',
+      recipes: '++id, name, parentRecipeId, isFavorite, createdAt, displayOrder, *tags, glassType',
+      menuInfo: '++id, recipeId, isAvailable, displayOrder, *flavorTags, drinkDuration',
+      tags: '++id, name',
+      inventoryLogs: '++id, ingredientId, timestamp',
+      makingNotes: '++id, recipeId, timestamp',
+      settings: '++id',
+      venues: '++id, name, createdAt',
+      venueRecipes: '++id, venueId, recipeId, displayOrder, isAvailable',
+      ingredientMaster: '++id, name, category, displayOrder, createdAt',
+      venueIngredients: '++id, venueId, ingredientMasterId, displayOrder, [venueId+ingredientMasterId]',
+    }).upgrade(async tx => {
+      console.log('开始数据库升级到Version 4...');
+      
+      // 从旧的ingredients表迁移数据到ingredientMaster
+      const oldIngredients = await tx.table('ingredients').toArray();
+      console.log(`找到 ${oldIngredients.length} 个旧原料，开始迁移...`);
+      
+      for (const oldIng of oldIngredients) {
+        // 创建全局原料主数据 - 不包含库存字段
+        const masterId = await tx.table('ingredientMaster').add({
+          name: oldIng.name,
+          nameEn: oldIng.nameEn,
+          category: oldIng.category,
+          price: oldIng.price || 0,
+          quantity: oldIng.quantity || 750,
+          unit: oldIng.unit,
+          alcoholContent: oldIng.alcoholContent,
+          wastageRate: oldIng.wastageRate || 5,
+          unitPrice: oldIng.unitPrice || (oldIng.price && oldIng.quantity ? oldIng.price / oldIng.quantity : 0),
+          displayOrder: oldIng.displayOrder || oldIng.id,
+          notes: oldIng.notes,
+          createdAt: oldIng.createdAt || new Date(),
+          updatedAt: new Date(),
+        });
+        
+        console.log(`已创建原料主数据: ${oldIng.name} (ID: ${masterId})，库存数据将在店面原料中管理`);
+      }
+      
+      console.log('数据库升级到Version 4完成！');
+      console.log('注意：旧的ingredients表保留用于兼容，新数据请使用ingredientMaster和venueIngredients');
+    });
+
+    // 版本5：修复ingredientMaster缺失字段问题
+    this.version(5).stores({
+      ingredients: '++id, name, category, currentStock, createdAt, displayOrder',
+      recipes: '++id, name, parentRecipeId, isFavorite, createdAt, displayOrder, *tags, glassType',
+      menuInfo: '++id, recipeId, isAvailable, displayOrder, *flavorTags, drinkDuration',
+      tags: '++id, name',
+      inventoryLogs: '++id, ingredientId, timestamp',
+      makingNotes: '++id, recipeId, timestamp',
+      settings: '++id',
+      venues: '++id, name, createdAt',
+      venueRecipes: '++id, venueId, recipeId, displayOrder, isAvailable',
+      ingredientMaster: '++id, name, category, displayOrder, createdAt, price, quantity',
+      venueIngredients: '++id, venueId, ingredientMasterId, displayOrder, [venueId+ingredientMasterId]',
+    }).upgrade(async tx => {
+      console.log('开始数据库升级到Version 5 - 修复ingredientMaster缺失字段...');
+      
+      // 检查并修复现有的ingredientMaster数据
+      const masters = await tx.table('ingredientMaster').toArray();
+      console.log(`找到 ${masters.length} 个原料主数据，检查缺失字段...`);
+      
+      for (const master of masters) {
+        const updates: any = {};
+        let needsUpdate = false;
+        
+        // 如果缺少price或quantity，从ingredients表查找原始数据
+        if (master.price === undefined || master.quantity === undefined) {
+          const oldIng = await tx.table('ingredients')
+            .where('name')
+            .equals(master.name)
+            .first();
+          
+          if (oldIng) {
+            if (master.price === undefined) {
+              updates.price = oldIng.price || 0;
+              needsUpdate = true;
+            }
+            if (master.quantity === undefined) {
+              updates.quantity = oldIng.quantity || 750;
+              needsUpdate = true;
+            }
+            if (master.wastageRate === undefined) {
+              updates.wastageRate = oldIng.wastageRate || 5;
+              needsUpdate = true;
+            }
+            if (master.unitPrice === undefined && oldIng.price && oldIng.quantity) {
+              updates.unitPrice = oldIng.price / oldIng.quantity;
+              needsUpdate = true;
+            }
+          }
+        }
+        
+        if (needsUpdate) {
+          await tx.table('ingredientMaster').update(master.id!, updates);
+          console.log(`已修复原料: ${master.name}，补充缺失字段`);
+        }
+      }
+      
+      console.log('数据库升级到Version 5完成！所有原料数据已修复');
     });
   }
 }

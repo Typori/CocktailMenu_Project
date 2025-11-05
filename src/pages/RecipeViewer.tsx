@@ -20,6 +20,15 @@ export default function RecipeViewer() {
 
   const ingredients = useLiveQuery(() => db.ingredients.toArray(), []);
 
+  // 处理返回按钮 - 返回上一页
+  const handleGoBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/recipes');
+    }
+  };
+
   useEffect(() => {
     if (id) {
       db.recipes.get(Number(id)).then((r) => {
@@ -135,7 +144,7 @@ export default function RecipeViewer() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate('/recipes')}
+            onClick={handleGoBack}
             className="touch-feedback shrink-0"
           >
             <ArrowLeft className="h-5 w-5" />

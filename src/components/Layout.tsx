@@ -3,9 +3,6 @@ import {
   Home, 
   Wine, 
   BookOpen, 
-  Menu, 
-  Package, 
-  BarChart3, 
   Settings as SettingsIcon,
   Store,
   Moon,
@@ -17,16 +14,15 @@ import { cn } from '@/lib/utils';
 
 const navigation = [
   { name: '仪表盘', href: '/dashboard', icon: Home },
-  { name: '原料与库存', href: '/ingredients', icon: Wine },
-  { name: '配方管理', href: '/recipes', icon: BookOpen },
-  { name: '上架酒款', href: '/venues', icon: Store },
-  { name: '数据分析', href: '/analytics', icon: BarChart3 },
+  { name: '原料库', href: '/ingredient-master', icon: Wine },
+  { name: '配方库', href: '/recipes', icon: BookOpen },
+  { name: '店面管理', href: '/venues', icon: Store },
   { name: '设置', href: '/settings', icon: SettingsIcon },
 ];
 
 export default function Layout() {
   const location = useLocation();
-  const { theme, setTheme, effectiveTheme } = useTheme();
+  const { setTheme, effectiveTheme } = useTheme();
 
   const toggleTheme = () => {
     setTheme(effectiveTheme === 'dark' ? 'light' : 'dark');

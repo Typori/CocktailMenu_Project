@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/database';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,6 +11,9 @@ import { Search, Grid, List, Eye } from 'lucide-react';
 import { formatCurrency } from '@/utils/calculations';
 
 export default function MenuDisplay() {
+  // 滚动位置恢复
+  useScrollRestoration();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
 

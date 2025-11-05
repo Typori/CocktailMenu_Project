@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useContainerScrollRestoration } from '@/hooks/useScrollRestoration';
 import { db } from '@/db/database';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -190,6 +191,12 @@ function SortableRecipeCard({
 }
 
 export default function Recipes() {
+  // 滚动容器引用
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  
+  // 滚动位置恢复
+  useContainerScrollRestoration(scrollContainerRef, 'recipes-list');
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [isSortMode, setIsSortMode] = useState(false);
@@ -433,7 +440,7 @@ export default function Recipes() {
       </div>
 
       {/* 可滚动内容区域 */}
-      <div className="flex-1 overflow-y-auto space-y-6 min-h-0">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto space-y-6 min-h-0">
         {/* 筛选器 */}
         {!isSortMode && showFilters && (
           <Card>

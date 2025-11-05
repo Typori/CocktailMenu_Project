@@ -2,12 +2,16 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/database';
+import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Wine, BookOpen, Package, TrendingUp, AlertTriangle, Star } from 'lucide-react';
 import { Statistics } from '@/types';
 
 export default function Dashboard() {
+  // 滚动位置恢复
+  useScrollRestoration();
+  
   const [stats, setStats] = useState<Statistics>({
     totalRecipes: 0,
     totalIngredients: 0,
