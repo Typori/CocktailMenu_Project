@@ -1,11 +1,12 @@
 import { useState, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
-import { Settings as SettingsIcon, Palette, Database, Bell, Download, Upload, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Settings as SettingsIcon, Palette, Database, Bell, Download, Upload, AlertCircle, CheckCircle2, RefreshCw, Archive } from 'lucide-react';
 import { exportToJson, importFromJson } from '@/utils/export';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { db } from '@/db/database';
@@ -120,7 +121,7 @@ export default function Settings() {
       <div>
         <h2 className="text-3xl font-bold tracking-tight flex items-center gap-2">
           <SettingsIcon className="h-8 w-8" />
-          系统设置
+          设置
         </h2>
         <p className="text-muted-foreground mt-2">
           管理系统配置和偏好设置
@@ -294,6 +295,34 @@ export default function Settings() {
                 </div>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* 备份页面 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Archive className="h-5 w-5" />
+              备份页面
+            </CardTitle>
+            <CardDescription>
+              访问旧版本的功能页面（仅供开发和测试使用）
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Link to="/ingredients">
+              <Button variant="outline" className="w-full justify-start">
+                原料管理（旧版本）
+              </Button>
+            </Link>
+            <Link to="/inventory">
+              <Button variant="outline" className="w-full justify-start">
+                库存管理（旧版本）
+              </Button>
+            </Link>
+            <p className="text-xs text-muted-foreground">
+              注意：备份页面可能包含过时的功能或界面，仅用于数据恢复或功能对比。
+            </p>
           </CardContent>
         </Card>
 

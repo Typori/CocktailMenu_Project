@@ -93,12 +93,17 @@ function SortableIngredient({ ingredient, onEdit, onDelete }: SortableIngredient
           </div>
           
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="font-medium truncate">
+            <div className="flex items-center gap-2 mb-2">
+              <h3 className="font-medium">
                 {ingredient.ingredientName || ingredient.master?.name}
               </h3>
+              {ingredient.master?.nameEn && (
+                <span className="text-sm text-muted-foreground">
+                  {ingredient.master.nameEn}
+                </span>
+              )}
               {isLowStock && (
-                <AlertTriangle className="h-4 w-4 text-orange-500 flex-shrink-0" />
+                <AlertTriangle className="h-4 w-4 text-orange-500 flex-shrink-0 ml-auto" />
               )}
             </div>
             <div className="flex items-center gap-2 flex-wrap mb-2">

@@ -169,7 +169,7 @@ export async function exportMenuToPdf(
       yPosition += 5;
       
       for (const ing of recipe.ingredients) {
-        const ingredient = await db.ingredients.get(ing.ingredientId);
+        const ingredient = await db.ingredientMaster.get(ing.ingredientId);
         if (ingredient) {
           pdf.text(`- ${ingredient.name} ${ing.quantity}${ing.unit}`, 25, yPosition);
           yPosition += 4;
@@ -227,7 +227,7 @@ export async function generateShoppingList(recipeIds: number[]): Promise<string>
     if (!recipe) continue;
 
     for (const recipeIng of recipe.ingredients) {
-      const ingredient = await db.ingredients.get(recipeIng.ingredientId);
+      const ingredient = await db.ingredientMaster.get(recipeIng.ingredientId);
       if (!ingredient) continue;
 
       const currentStock = ingredient.currentStock || 0;

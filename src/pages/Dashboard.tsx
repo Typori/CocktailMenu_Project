@@ -5,7 +5,7 @@ import { db } from '@/db/database';
 import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Wine, BookOpen, Package, TrendingUp, AlertTriangle, Star } from 'lucide-react';
+import { Home, Wine, BookOpen, Package, TrendingUp, AlertTriangle, Star } from 'lucide-react';
 import { Statistics } from '@/types';
 
 export default function Dashboard() {
@@ -23,7 +23,7 @@ export default function Dashboard() {
   });
 
   const recipes = useLiveQuery(() => db.recipes.toArray(), []);
-  const ingredients = useLiveQuery(() => db.ingredients.toArray(), []);
+  const ingredients = useLiveQuery(() => db.ingredientMaster.toArray(), []);
   const favoriteRecipes = useLiveQuery(() => 
     db.recipes.filter(r => r.isFavorite === true).toArray(),
     []
@@ -33,7 +33,7 @@ export default function Dashboard() {
     const calculateStats = async () => {
       try {
         const totalRecipes = await db.recipes.count();
-        const totalIngredients = await db.ingredients.count();
+        const totalIngredients = await db.ingredientMaster.count();
         
         const allRecipes = await db.recipes.toArray();
         const avgCost = allRecipes.reduce((sum, r) => sum + (r.calculatedCost || 0), 0) / (totalRecipes || 1);
@@ -71,8 +71,11 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">仪表盘</h2>
-        <p className="text-muted-foreground">欢迎回来！这是你的调酒管理概览</p>
+        <h2 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+          <Home className="h-8 w-8" />
+          仪表盘
+        </h2>
+        <p className="text-muted-foreground mt-2">欢迎回来！这是你的调酒管理概览</p>
       </div>
 
       {/* 统计卡片 */}

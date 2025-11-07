@@ -69,7 +69,7 @@ export async function calculateRecipeCost(recipe: Recipe): Promise<number> {
   let totalCost = 0;
 
   for (const recipeIngredient of recipe.ingredients) {
-    const ingredient = await db.ingredients.get(recipeIngredient.ingredientId);
+    const ingredient = await db.ingredientMaster.get(recipeIngredient.ingredientId);
     if (ingredient) {
       const unitPrice = calculateUnitPrice(ingredient);
       // 转换为相同单位进行计算
@@ -90,7 +90,7 @@ export async function calculateRecipeAbv(recipe: Recipe): Promise<number> {
   let totalVolume = 0;
 
   for (const recipeIngredient of recipe.ingredients) {
-    const ingredient = await db.ingredients.get(recipeIngredient.ingredientId);
+    const ingredient = await db.ingredientMaster.get(recipeIngredient.ingredientId);
     if (ingredient) {
       const volumeInMl = convertToMl(recipeIngredient.quantity, recipeIngredient.unit);
       totalVolume += volumeInMl;
@@ -142,7 +142,7 @@ export async function checkRecipeStock(recipe: Recipe): Promise<{
   const missingIngredients: Array<{ id: number; name: string; needed: number; available: number }> = [];
 
   for (const recipeIngredient of recipe.ingredients) {
-    const ingredient = await db.ingredients.get(recipeIngredient.ingredientId);
+    const ingredient = await db.ingredientMaster.get(recipeIngredient.ingredientId);
     if (ingredient) {
       const currentStock = ingredient.currentStock || 0;
       const neededQuantity = recipeIngredient.unit === ingredient.unit

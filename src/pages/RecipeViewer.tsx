@@ -18,7 +18,7 @@ export default function RecipeViewer() {
   const [menuInfo, setMenuInfo] = useState<MenuInfo | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-  const ingredients = useLiveQuery(() => db.ingredients.toArray(), []);
+  const ingredients = useLiveQuery(() => db.ingredientMaster.toArray(), []);
 
   // 处理返回按钮 - 返回上一页
   const handleGoBack = () => {

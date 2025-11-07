@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, GripVertical } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, GripVertical, Wine } from 'lucide-react';
 import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -261,7 +261,10 @@ export default function IngredientMasterPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">原料库</h1>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <Wine className="h-8 w-8" />
+            原料库
+          </h1>
           <p className="text-muted-foreground mt-1">
             管理全局原料主数据（库存在各店面中管理）
           </p>

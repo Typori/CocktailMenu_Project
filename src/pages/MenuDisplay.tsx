@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Search, Grid, List, Eye } from 'lucide-react';
+import { Search, Grid, List, Eye, BookOpen } from 'lucide-react';
 import { formatCurrency } from '@/utils/calculations';
 
 export default function MenuDisplay() {
@@ -32,8 +32,11 @@ export default function MenuDisplay() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">酒单展示</h2>
-          <p className="text-muted-foreground">浏览和展示你的调酒菜单</p>
+          <h2 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+            <BookOpen className="h-8 w-8" />
+            酒单展示
+          </h2>
+          <p className="text-muted-foreground mt-2">浏览和展示你的调酒菜单</p>
         </div>
         <div className="flex gap-2">
           <Button

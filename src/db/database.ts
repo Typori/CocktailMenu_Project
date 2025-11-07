@@ -225,6 +225,68 @@ export class CocktailDatabase extends Dexie {
       
       console.log('数据库升级到Version 5完成！所有原料数据已修复');
     });
+
+    // 版本6：修复配方中的ingredientId映射问题
+    this.version(6).stores({
+      ingredients: '++id, name, category, currentStock, createdAt, displayOrder',
+      recipes: '++id, name, parentRecipeId, isFavorite, createdAt, displayOrder, *tags, glassType',
+      menuInfo: '++id, recipeId, isAvailable, displayOrder, *flavorTags, drinkDuration',
+      tags: '++id, name',
+      inventoryLogs: '++id, ingredientId, timestamp',
+      makingNotes: '++id, recipeId, timestamp',
+      settings: '++id',
+      venues: '++id, name, createdAt',
+      venueRecipes: '++id, venueId, recipeId, displayOrder, isAvailable',
+      ingredientMaster: '++id, name, category, displayOrder, createdAt, price, quantity',
+      venueIngredients: '++id, venueId, ingredientMasterId, displayOrder, [venueId+ingredientMasterId]',
+    }).upgrade(async tx => {
+      console.log('开始数据库升级到Version 6 - 修复配方中的ingredientId映射...');
+      
+      // 建立旧ID到新ID的映射
+      const oldIngredients = await tx.table('ingredients').toArray();
+      const newIngredients = await tx.table('ingredientMaster').toArray();
+      const idMapping = new Map<number, number>();
+      
+      // 通过名称匹配建立映射关系
+      for (const oldIng of oldIngredients) {
+        const matchedNew = newIngredients.find(newIng => 
+          newIng.name === oldIng.name && newIng.nameEn === oldIng.nameEn
+        );
+        if (matchedNew) {
+          idMapping.set(oldIng.id!, matchedNew.id!);
+          console.log(`映射: 旧ID ${oldIng.id} (${oldIng.name}) -> 新ID ${matchedNew.id}`);
+        }
+      }
+      
+      // 更新所有配方中的ingredientId
+      const recipes = await tx.table('recipes').toArray();
+      let updatedCount = 0;
+      
+      for (const recipe of recipes) {
+        if (!recipe.ingredients || recipe.ingredients.length === 0) continue;
+        
+        let hasChanges = false;
+        const updatedIngredients = recipe.ingredients.map((ing: any) => {
+          const newId = idMapping.get(ing.ingredientId);
+          if (newId && newId !== ing.ingredientId) {
+            hasChanges = true;
+            console.log(`  配方 \"${recipe.name}\" 中的原料ID: ${ing.ingredientId} -> ${newId}`);
+            return { ...ing, ingredientId: newId };
+          }
+          return ing;
+        });
+        
+        if (hasChanges) {
+          await tx.table('recipes').update(recipe.id!, { 
+            ingredients: updatedIngredients,
+            updatedAt: new Date()
+          });
+          updatedCount++;
+        }
+      }
+      
+      console.log(`数据库升级到Version 6完成！已更新 ${updatedCount} 个配方的原料ID映射`);
+    });
   }
 }
 

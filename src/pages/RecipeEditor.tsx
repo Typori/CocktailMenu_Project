@@ -169,7 +169,7 @@ export default function RecipeEditor() {
   const [isSaving, setIsSaving] = useState(false);
   const initialDataRef = useRef<{ recipe: Partial<Recipe>; menuInfo: Partial<MenuInfo> } | null>(null);
 
-  const ingredients = useLiveQuery(() => db.ingredients.toArray(), []);
+  const ingredients = useLiveQuery(() => db.ingredientMaster.toArray(), []);
 
   const sensors = useSensors(
     useSensor(PointerSensor),

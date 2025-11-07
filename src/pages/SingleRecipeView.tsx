@@ -33,7 +33,7 @@ export default function SingleRecipeView() {
       setMenuInfo(m || null);
 
       const ings = await Promise.all(
-        r.ingredients.map(ing => db.ingredients.get(ing.ingredientId))
+        r.ingredients.map(ing => db.ingredientMaster.get(ing.ingredientId))
       );
       setIngredients(ings.filter(Boolean) as Ingredient[]);
     }

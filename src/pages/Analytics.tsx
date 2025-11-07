@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/database';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Download, TrendingUp, DollarSign, Percent } from 'lucide-react';
+import { Download, TrendingUp, DollarSign, Percent, BarChart3 } from 'lucide-react';
 import { formatCurrency } from '@/utils/calculations';
 import { exportToJson, exportMenuToPdf } from '@/utils/export';
 
@@ -67,8 +67,11 @@ export default function Analytics() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">数据分析</h2>
-          <p className="text-muted-foreground">查看成本分析和利润统计</p>
+          <h2 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+            <BarChart3 className="h-8 w-8" />
+            数据分析
+          </h2>
+          <p className="text-muted-foreground mt-2">查看成本分析和利润统计</p>
         </div>
         <div className="flex gap-2">
           <Button onClick={handleExportJson} variant="outline" className="touch-feedback">

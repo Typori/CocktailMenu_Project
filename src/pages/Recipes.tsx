@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, Star, Edit, Trash2, Copy, Filter, X, GripVertical, Check } from 'lucide-react';
+import { Plus, Search, Star, Edit, Trash2, Copy, Filter, X, GripVertical, Check, BookOpen } from 'lucide-react';
 import { formatCurrency, getFlavorTagLabel, getDrinkDurationLabel, getGlassTypeLabel } from '@/utils/calculations';
 import { FlavorTag, DrinkDuration, GlassType } from '@/types';
 import {
@@ -77,7 +77,7 @@ function SortableRecipeCard({
           </div>
         )}
         {isSortMode ? (
-          <CardHeader className="pb-3 pl-12">
+          <CardHeader className="pb-2 pl-12">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <CardTitle className="text-xl flex items-center gap-2">
@@ -86,23 +86,25 @@ function SortableRecipeCard({
                     <Star className="h-4 w-4 fill-yellow-500 text-yellow-500 flex-shrink-0" />
                   )}
                 </CardTitle>
+                {recipe.nameEn && (
+                  <p className="text-sm text-muted-foreground mt-0.5">{recipe.nameEn}</p>
+                )}
               </div>
+              {/* 风味标签 */}
+              {recipe.menuInfo?.flavorTags && recipe.menuInfo.flavorTags.length > 0 && (
+                <div className="flex flex-wrap gap-1 justify-end">
+                  {recipe.menuInfo.flavorTags.map((tag: FlavorTag) => (
+                    <Badge key={tag} variant="secondary" className="text-xs">
+                      {getFlavorTagLabel(tag)}
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
-            
-            {/* 风味标签 */}
-            {recipe.menuInfo?.flavorTags && recipe.menuInfo.flavorTags.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {recipe.menuInfo.flavorTags.map((tag: FlavorTag) => (
-                  <Badge key={tag} variant="secondary" className="text-xs">
-                    {getFlavorTagLabel(tag)}
-                  </Badge>
-                ))}
-              </div>
-            )}
           </CardHeader>
         ) : (
           <Link to={`/recipes/${recipe.id}`}>
-            <CardHeader className="pb-3 cursor-pointer hover:bg-muted/50 transition-colors rounded-t-lg">
+            <CardHeader className="pb-2 cursor-pointer hover:bg-muted/50 transition-colors rounded-t-lg">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <CardTitle className="text-xl flex items-center gap-2">
@@ -111,42 +113,35 @@ function SortableRecipeCard({
                       <Star className="h-4 w-4 fill-yellow-500 text-yellow-500 flex-shrink-0" />
                     )}
                   </CardTitle>
+                  {recipe.nameEn && (
+                    <p className="text-sm text-muted-foreground mt-0.5">{recipe.nameEn}</p>
+                  )}
                 </div>
+                {/* 风味标签 */}
+                {recipe.menuInfo?.flavorTags && recipe.menuInfo.flavorTags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 justify-end">
+                    {recipe.menuInfo.flavorTags.map((tag: FlavorTag) => (
+                      <Badge key={tag} variant="secondary" className="text-xs">
+                        {getFlavorTagLabel(tag)}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </div>
-              
-              {/* 风味标签 */}
-              {recipe.menuInfo?.flavorTags && recipe.menuInfo.flavorTags.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {recipe.menuInfo.flavorTags.map((tag: FlavorTag) => (
-                    <Badge key={tag} variant="secondary" className="text-xs">
-                      {getFlavorTagLabel(tag)}
-                    </Badge>
-                  ))}
-                </div>
-              )}
             </CardHeader>
           </Link>
         )}
         
-        <CardContent className={`space-y-3 ${isSortMode ? 'pointer-events-none' : ''}`}>
-          {/* 配方信息 */}
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <div className="flex items-center gap-1">
-              <span className="text-muted-foreground">配料:</span>
-              <span className="font-medium">{recipe.ingredients.length} 种</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-muted-foreground">容量:</span>
-              <span className="font-medium">{recipe.totalVolume || 0} ml</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-muted-foreground">成本:</span>
-              <span className="font-medium">{formatCurrency(recipe.calculatedCost || 0)}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-muted-foreground">酒精度:</span>
-              <span className="font-medium">{recipe.calculatedAbv || 0}%</span>
-            </div>
+        <CardContent className={`space-y-2.5 ${isSortMode ? 'pointer-events-none' : ''}`}>
+          {/* 配方信息 - 单行显示 */}
+          <div className="flex items-center justify-between text-sm border-t pt-2.5">
+            <span className="text-muted-foreground">{recipe.ingredients.length}种</span>
+            <span className="text-muted-foreground">•</span>
+            <span className="text-muted-foreground">{recipe.totalVolume || 0}ml</span>
+            <span className="text-muted-foreground">•</span>
+            <span className="text-muted-foreground">{recipe.calculatedAbv || 0}%</span>
+            <span className="text-muted-foreground">•</span>
+            <span className="text-muted-foreground">{formatCurrency(recipe.calculatedCost || 0)}</span>
           </div>
 
           {/* 操作按钮 */}
@@ -357,8 +352,11 @@ export default function Recipes() {
       <div className="flex-shrink-0 space-y-6 pb-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">配方管理</h2>
-            <p className="text-muted-foreground">
+            <h2 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+              <BookOpen className="h-8 w-8" />
+              配方库
+            </h2>
+            <p className="text-muted-foreground mt-2">
               {isSortMode ? '拖动卡片重新排序' : '创建和管理你的调酒配方'}
             </p>
           </div>

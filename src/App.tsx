@@ -6,6 +6,7 @@ import { db, initializeDefaultSettings, initializeSampleData } from '@/db/databa
 import Layout from '@/components/Layout';
 import Dashboard from '@/pages/Dashboard';
 import Ingredients from '@/pages/Ingredients';
+import Inventory from '@/pages/Inventory';
 import IngredientMaster from '@/pages/IngredientMaster';
 import Recipes from '@/pages/Recipes';
 import RecipeEditor from '@/pages/RecipeEditor';
@@ -71,8 +72,10 @@ function App() {
             <Route path="/" element={<Layout />}>
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
-              <Route path="ingredients" element={<Ingredients />} />
               <Route path="ingredient-master" element={<IngredientMaster />} />
+              {/* 备份页面 - 仅供开发和数据恢复使用 */}
+              <Route path="ingredients" element={<Ingredients />} />
+              <Route path="inventory" element={<Inventory />} />
               <Route path="recipes" element={<Recipes />} />
               <Route path="recipes/new" element={<RecipeEditor />} />
               <Route path="recipes/:id" element={<RecipeViewer />} />
