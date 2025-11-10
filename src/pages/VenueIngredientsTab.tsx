@@ -61,9 +61,11 @@ interface SortableIngredientProps {
   ingredient: VenueIngredient & { master?: IngredientMaster };
   onEdit: (ingredient: VenueIngredient) => void;
   onDelete: (id: number) => void;
+  onFillStock: (id: number, quantity: number) => void;
+  onClearStock: (id: number) => void;
 }
 
-function SortableIngredient({ ingredient, onEdit, onDelete }: SortableIngredientProps) {
+function SortableIngredient({ ingredient, onEdit, onDelete, onFillStock, onClearStock }: SortableIngredientProps) {
   const {
     attributes,
     listeners,
@@ -79,7 +81,7 @@ function SortableIngredient({ ingredient, onEdit, onDelete }: SortableIngredient
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const unitPrice = ingredient.unitPrice || (ingredient.price / ingredient.quantity);
+  const unitPrice = ingredient.unitPrice || 0;
   const isLowStock = ingredient.currentStock !== undefined && 
                      ingredient.minStock !== undefined && 
                      ingredient.currentStock <= ingredient.minStock;
@@ -135,12 +137,30 @@ function SortableIngredient({ ingredient, onEdit, onDelete }: SortableIngredient
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onFillStock(ingredient.id!, ingredient.quantity)}
+              className="touch-feedback h-8 px-2 text-xs"
+              title="补满库存"
+            >
+              补满
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onClearStock(ingredient.id!)}
+              className="touch-feedback h-8 px-2 text-xs"
+              title="清空库存"
+            >
+              清空
+            </Button>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => onEdit(ingredient)}
-              className="touch-feedback"
+              className="touch-feedback h-8 w-8"
             >
               <Pencil className="h-4 w-4" />
             </Button>
@@ -148,7 +168,7 @@ function SortableIngredient({ ingredient, onEdit, onDelete }: SortableIngredient
               variant="ghost"
               size="icon"
               onClick={() => onDelete(ingredient.id!)}
-              className="text-destructive hover:text-destructive touch-feedback"
+              className="text-destructive hover:text-destructive touch-feedback h-8 w-8"
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -244,6 +264,32 @@ export default function VenueIngredientsTab({ venueId, activeTab, onTabChange }:
     } catch (error) {
       console.error('删除原料失败:', error);
       alert('删除失败，请稍后重试');
+    }
+  };
+
+  // 补满单个原料库存
+  const handleFillStock = async (id: number, quantity: number) => {
+    try {
+      await db.venueIngredients.update(id, {
+        currentStock: quantity,
+        updatedAt: new Date(),
+      });
+    } catch (error) {
+      console.error('补满库存失败:', error);
+      alert('操作失败，请稍后重试');
+    }
+  };
+
+  // 清空单个原料库存
+  const handleClearStock = async (id: number) => {
+    try {
+      await db.venueIngredients.update(id, {
+        currentStock: 0,
+        updatedAt: new Date(),
+      });
+    } catch (error) {
+      console.error('清空库存失败:', error);
+      alert('操作失败，请稍后重试');
     }
   };
 
@@ -433,6 +479,8 @@ export default function VenueIngredientsTab({ venueId, activeTab, onTabChange }:
                   ingredient={ingredient}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
+                  onFillStock={handleFillStock}
+                  onClearStock={handleClearStock}
                 />
               ))}
             </div>

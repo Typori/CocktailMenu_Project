@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/database';
 import { Recipe, RecipeIngredient, MenuInfo, Unit, GlassType, FlavorTag, DrinkDuration } from '@/types';
@@ -108,6 +108,7 @@ function SortableIngredientItem({
           onChange={(e) =>
             onIngredientChange(index, 'quantity', e.target.value === '' ? undefined : Number(e.target.value))
           }
+          onClick={(e) => (e.target as HTMLInputElement).select()}
           placeholder="0"
           min="0"
           step="0.1"
@@ -147,6 +148,7 @@ function SortableIngredientItem({
 export default function RecipeEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [recipe, setRecipe] = useState<Partial<Recipe>>({
     name: '',
     nameEn: '',
@@ -434,7 +436,13 @@ export default function RecipeEditor() {
       
       // 只在不跳过导航时才导航
       if (!skipNavigation) {
-        navigate('/recipes');
+        // 如果有来源页面，返回来源页面，否则返回配方列表
+        const from = location.state?.from;
+        if (from && typeof from === 'string') {
+          navigate(from);
+        } else {
+          navigate('/recipes');
+        }
       }
     } catch (error) {
       console.error('Failed to save recipe:', error);
@@ -886,15 +894,16 @@ export default function RecipeEditor() {
               </div>
             </div>
 
-            {/* 售价和酒精度 */}
+            {/* 建议售价和酒精度 */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="price">售价 (¥)</Label>
+                <Label htmlFor="price">建议售价 (¥)</Label>
                 <Input
                   id="price"
                   type="number"
                   value={menuInfo.price ?? ''}
                   onChange={(e) => setMenuInfo({ ...menuInfo, price: e.target.value === '' ? undefined : Number(e.target.value) })}
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
                   placeholder="0"
                   min="0"
                   step="0.01"

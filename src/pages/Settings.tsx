@@ -281,10 +281,10 @@ export default function Settings() {
                     type="number"
                     min="0"
                     max="100"
-                    value={notificationSettings.lowStockThreshold}
+                    value={notificationSettings.lowStockThreshold || ''}
                     onChange={(e) => 
                       updateNotificationSettings({ 
-                        lowStockThreshold: Number(e.target.value) 
+                        lowStockThreshold: e.target.value === '' ? 0 : Number(e.target.value)
                       })
                     }
                     className="w-24"

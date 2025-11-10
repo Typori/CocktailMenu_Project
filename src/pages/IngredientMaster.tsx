@@ -109,7 +109,7 @@ function SortableIngredient({ ingredient, onEdit, onDelete }: SortableIngredient
               <div>
                 <span className="text-muted-foreground">单价: </span>
                 <span className="font-medium">
-                  ¥{ingredient.unitPrice ? ingredient.unitPrice.toFixed(2) : (ingredient.price && ingredient.quantity ? (ingredient.price / ingredient.quantity).toFixed(2) : '0.00')}/{ingredient.unit}
+                  ¥{(ingredient.unitPrice || 0).toFixed(2)}/{ingredient.unit}
                 </span>
               </div>
             </div>

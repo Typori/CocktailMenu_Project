@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Filter, X, GripVertical, Check, FileDown, Edit, Trash2, Star } from 'lucide-react';
+import { Plus, Search, Filter, X, GripVertical, Check, FileDown, Edit, Trash2, Star, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -449,6 +449,63 @@ export default function VenueMenuTab({ venueId, activeTab, onTabChange }: VenueM
     }
   };
 
+  // 根据库存刷新酒款状态
+  const handleRefreshByStock = async () => {
+    if (!venueRecipesWithInfo || !allRecipes) {
+      return;
+    }
+
+    // 获取当前店面的所有原料库存
+    const venueIngredients = await db.venueIngredients.where('venueId').equals(venueId).toArray();
+    
+    // 创建一个库存映射表（原料主数据ID -> 当前库存）
+    const stockMap = new Map<number, number>();
+    venueIngredients.forEach(vi => {
+      stockMap.set(vi.ingredientMasterId, vi.currentStock || 0);
+    });
+
+    let updatedCount = 0;
+    let availableCount = 0;
+    let unavailableCount = 0;
+
+    // 遍历所有店面酒款
+    for (const vr of venueRecipesWithInfo) {
+      const recipe = vr.recipe;
+      if (!recipe || !recipe.ingredients) continue;
+
+      // 检查该配方的所有原料是否都有库存
+      let canMake = true;
+      for (const recipeIng of recipe.ingredients) {
+        const stock = stockMap.get(recipeIng.ingredientId) || 0;
+        if (stock <= 0) {
+          canMake = false;
+          break;
+        }
+      }
+
+      // 更新酒款状态
+      const newStatus = canMake;
+      if (vr.isAvailable !== newStatus) {
+        await db.venueRecipes.update(vr.id!, {
+          isAvailable: newStatus,
+          updatedAt: new Date(),
+        });
+        updatedCount++;
+        if (newStatus) {
+          availableCount++;
+        } else {
+          unavailableCount++;
+        }
+      }
+    }
+
+    if (updatedCount > 0) {
+      alert(`已更新 ${updatedCount} 款酒的状态\n上架: ${availableCount} 款\n下架: ${unavailableCount} 款`);
+    } else {
+      alert('所有酒款状态已是最新，无需更新');
+    }
+  };
+
   return (
     <div className="space-y-3">
       {/* 操作栏 */}
@@ -506,6 +563,16 @@ export default function VenueMenuTab({ venueId, activeTab, onTabChange }: VenueM
             </>
           ) : (
             <>
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={handleRefreshByStock}
+                className="touch-feedback"
+                disabled={!venueRecipesWithInfo || venueRecipesWithInfo.length === 0}
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                根据库存刷新
+              </Button>
               <Button 
                 variant="outline"
                 size="sm"
@@ -657,7 +724,7 @@ export default function VenueMenuTab({ venueId, activeTab, onTabChange }: VenueM
                   onToggleAvailable={handleToggleAvailable}
                   onRemove={handleRemoveRecipe}
                   onEditPrice={handleOpenPriceDialog}
-                  onViewRecipe={(recipeId) => navigate(`/recipes/${recipeId}`)}
+                  onViewRecipe={(recipeId) => navigate(`/recipes/${recipeId}`, { state: { from: '/venue-management' } })}
                 />
               ))}
             </div>
@@ -802,8 +869,9 @@ export default function VenueMenuTab({ venueId, activeTab, onTabChange }: VenueM
               <Input
                 id="custom-price"
                 type="number"
-                value={customPrice}
-                onChange={(e) => setCustomPrice(Number(e.target.value))}
+                value={customPrice || ''}
+                onChange={(e) => setCustomPrice(e.target.value === '' ? 0 : Number(e.target.value))}
+                onClick={(e) => (e.target as HTMLInputElement).select()}
                 placeholder="0"
                 min="0"
                 step="0.01"

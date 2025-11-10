@@ -152,7 +152,8 @@ export class CocktailDatabase extends Dexie {
           unit: oldIng.unit,
           alcoholContent: oldIng.alcoholContent,
           wastageRate: oldIng.wastageRate || 5,
-          unitPrice: oldIng.unitPrice || (oldIng.price && oldIng.quantity ? oldIng.price / oldIng.quantity : 0),
+          unitPrice: oldIng.unitPrice || (oldIng.price && oldIng.quantity ? 
+            oldIng.price / (oldIng.quantity * (1 - (oldIng.wastageRate || 5) / 100)) : 0),
           displayOrder: oldIng.displayOrder || oldIng.id,
           notes: oldIng.notes,
           createdAt: oldIng.createdAt || new Date(),
@@ -211,7 +212,8 @@ export class CocktailDatabase extends Dexie {
               needsUpdate = true;
             }
             if (master.unitPrice === undefined && oldIng.price && oldIng.quantity) {
-              updates.unitPrice = oldIng.price / oldIng.quantity;
+              const wastageRate = oldIng.wastageRate || 5;
+              updates.unitPrice = oldIng.price / (oldIng.quantity * (1 - wastageRate / 100));
               needsUpdate = true;
             }
           }

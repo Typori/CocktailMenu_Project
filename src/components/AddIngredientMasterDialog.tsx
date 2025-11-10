@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select';
 import { db } from '@/db/database';
 import { IngredientMaster, SpiritType, Unit } from '@/types';
+import { calculateUnitPrice } from '@/utils/calculations';
 
 interface AddIngredientMasterDialogProps {
   open: boolean;
@@ -86,12 +87,22 @@ export default function AddIngredientMasterDialog({
     setIsSubmitting(true);
 
     try {
+      // 计算单价并保存到数据库
+      const unitPrice = calculateUnitPrice({
+        price: formData.price || 0,
+        quantity: formData.quantity || 750,
+        wastageRate: formData.wastageRate,
+      } as IngredientMaster);
+
+      const dataToSave = {
+        ...formData,
+        unitPrice, // 保存计算好的单价
+        updatedAt: new Date(),
+      };
+
       if (editingIngredient?.id) {
         // 更新现有原料
-        await db.ingredientMaster.update(editingIngredient.id, {
-          ...formData,
-          updatedAt: new Date(),
-        });
+        await db.ingredientMaster.update(editingIngredient.id, dataToSave);
       } else {
         // 添加新原料
         const maxOrder = await db.ingredientMaster
@@ -100,10 +111,9 @@ export default function AddIngredientMasterDialog({
           .first();
         
         await db.ingredientMaster.add({
-          ...formData as IngredientMaster,
+          ...dataToSave as IngredientMaster,
           displayOrder: (maxOrder?.displayOrder || 0) + 1,
           createdAt: new Date(),
-          updatedAt: new Date(),
         });
       }
 
@@ -201,10 +211,11 @@ export default function AddIngredientMasterDialog({
                 type="number"
                 min="0"
                 step="0.01"
-                value={formData.price || 0}
+                value={formData.price || ''}
                 onChange={(e) =>
-                  setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })
+                  setFormData({ ...formData, price: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })
                 }
+                onClick={(e) => (e.target as HTMLInputElement).select()}
                 placeholder="例如: 180"
               />
             </div>
@@ -216,10 +227,11 @@ export default function AddIngredientMasterDialog({
                 type="number"
                 min="0"
                 step="0.01"
-                value={formData.quantity || 750}
+                value={formData.quantity || ''}
                 onChange={(e) =>
-                  setFormData({ ...formData, quantity: parseFloat(e.target.value) || 750 })
+                  setFormData({ ...formData, quantity: e.target.value === '' ? 0 : parseFloat(e.target.value) || 750 })
                 }
+                onClick={(e) => (e.target as HTMLInputElement).select()}
                 placeholder="例如: 750"
               />
             </div>
@@ -230,7 +242,10 @@ export default function AddIngredientMasterDialog({
               <p className="text-sm">
                 <span className="text-muted-foreground">单位价格: </span>
                 <span className="font-medium">
-                  ¥{(formData.price / formData.quantity).toFixed(2)}/{formData.unit}
+                  ¥{(() => {
+                    const usableQuantity = formData.quantity * (1 - (formData.wastageRate || 0) / 100);
+                    return usableQuantity > 0 ? (formData.price / usableQuantity).toFixed(2) : '0.00';
+                  })()}/{formData.unit}
                 </span>
               </p>
             </div>
@@ -245,10 +260,11 @@ export default function AddIngredientMasterDialog({
                 min="0"
                 max="100"
                 step="0.1"
-                value={formData.alcoholContent || 0}
+                value={formData.alcoholContent || ''}
                 onChange={(e) =>
-                  setFormData({ ...formData, alcoholContent: parseFloat(e.target.value) || 0 })
+                  setFormData({ ...formData, alcoholContent: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })
                 }
+                onClick={(e) => (e.target as HTMLInputElement).select()}
                 placeholder="0-100"
               />
             </div>
@@ -261,10 +277,11 @@ export default function AddIngredientMasterDialog({
                 min="0"
                 max="100"
                 step="0.1"
-                value={formData.wastageRate || 5}
+                value={formData.wastageRate || ''}
                 onChange={(e) =>
-                  setFormData({ ...formData, wastageRate: parseFloat(e.target.value) || 5 })
+                  setFormData({ ...formData, wastageRate: e.target.value === '' ? 0 : parseFloat(e.target.value) || 5 })
                 }
+                onClick={(e) => (e.target as HTMLInputElement).select()}
                 placeholder="默认 5%"
               />
             </div>

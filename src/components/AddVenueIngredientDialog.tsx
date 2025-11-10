@@ -9,6 +9,7 @@ import { db } from '@/db/database';
 import { VenueIngredient, IngredientMaster } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Search } from 'lucide-react';
+import { calculateUnitPrice } from '@/utils/calculations';
 
 interface AddVenueIngredientDialogProps {
   open: boolean;
@@ -94,7 +95,11 @@ export default function AddVenueIngredientDialog({
 
       try {
         const selectedMaster = ingredientMasters?.find(m => m.id === formData.ingredientMasterId);
-        const unitPrice = formData.price / formData.quantity;
+        const unitPrice = calculateUnitPrice({
+          price: formData.price,
+          quantity: formData.quantity,
+          wastageRate: formData.wastageRate,
+        } as IngredientMaster);
 
         await db.venueIngredients.update(editingIngredient.id!, {
           ...formData,
@@ -146,7 +151,11 @@ export default function AddVenueIngredientDialog({
           // 使用原料的默认数量作为初始库存
           const defaultQuantity = master.quantity || 750;
           const defaultPrice = master.price || 0;
-          const unitPrice = defaultPrice / defaultQuantity;
+          const unitPrice = calculateUnitPrice({
+            price: defaultPrice,
+            quantity: defaultQuantity,
+            wastageRate: master.wastageRate,
+          } as IngredientMaster);
 
           // 使用默认值添加
           await db.venueIngredients.add({
@@ -294,7 +303,8 @@ export default function AddVenueIngredientDialog({
                     min="0"
                     step="0.01"
                     value={formData.currentStock || ''}
-                    onChange={(e) => setFormData({ ...formData, currentStock: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => setFormData({ ...formData, currentStock: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
                     placeholder="例如: 750"
                   />
                 </div>
@@ -310,7 +320,8 @@ export default function AddVenueIngredientDialog({
                     min="0"
                     step="0.01"
                     value={formData.minStock || ''}
-                    onChange={(e) => setFormData({ ...formData, minStock: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => setFormData({ ...formData, minStock: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
                     placeholder="例如: 200"
                   />
                 </div>

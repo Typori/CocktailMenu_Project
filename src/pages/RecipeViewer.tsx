@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/database';
 import { Recipe, MenuInfo } from '@/types';
@@ -14,6 +14,7 @@ import { exportRecipeToPDF } from '@/utils/pdfExport';
 export default function RecipeViewer() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [menuInfo, setMenuInfo] = useState<MenuInfo | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -129,7 +130,7 @@ export default function RecipeViewer() {
           <Copy className="mr-1 h-4 w-4" />
           <span className="hidden sm:inline">复制</span>
         </Button>
-        <Link to={`/recipes/${id}/edit`}>
+        <Link to={`/recipes/${id}/edit`} state={{ from: location.state?.from || location.pathname }}>
           <Button size="sm" className="touch-feedback shadow-lg">
             <Edit className="mr-1 h-4 w-4" />
             <span className="hidden sm:inline">编辑</span>
@@ -274,7 +275,7 @@ export default function RecipeViewer() {
               </div>
               {menuInfo?.price !== undefined && menuInfo.price > 0 && (
                 <div>
-                  <div className="text-sm font-medium text-muted-foreground">售价</div>
+                  <div className="text-sm font-medium text-muted-foreground">建议售价</div>
                   <div className="text-base mt-1">{formatCurrency(menuInfo.price)}</div>
                 </div>
               )}

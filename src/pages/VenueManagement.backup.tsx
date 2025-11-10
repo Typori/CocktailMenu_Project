@@ -934,8 +934,8 @@ export default function VenueManagement() {
               <Input
                 id="custom-price"
                 type="number"
-                value={customPrice}
-                onChange={(e) => setCustomPrice(Number(e.target.value))}
+                value={customPrice || ''}
+                onChange={(e) => setCustomPrice(e.target.value === '' ? 0 : Number(e.target.value))}
                 placeholder="0"
                 min="0"
                 step="0.01"

@@ -57,11 +57,14 @@ export function canConvertUnits(fromUnit: Unit, toUnit: Unit): boolean {
 }
 
 // 计算原料的单位价格（考虑损耗率）
+// 损耗率定义：原料总数量会被损耗的比例，实际可用数量 = 数量 × (1 - 损耗率%)
+// 单价 = 价格 ÷ (数量 × (1 - 损耗率%))
 export function calculateUnitPrice(ingredient: Ingredient): number {
   if (ingredient.quantity === 0) return 0;
   const wastageRate = ingredient.wastageRate ?? 0; // 默认0%，不设置损耗率
-  const wastageMultiplier = 1 + (wastageRate / 100);
-  return (ingredient.price / ingredient.quantity) * wastageMultiplier;
+  const usableQuantity = ingredient.quantity * (1 - wastageRate / 100);
+  if (usableQuantity === 0) return 0; // 防止损耗率为100%时除以0
+  return ingredient.price / usableQuantity;
 }
 
 // 计算配方的总成本
