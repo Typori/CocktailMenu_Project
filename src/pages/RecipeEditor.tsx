@@ -28,8 +28,9 @@ import { MultiSelect } from '@/components/ui/multi-select';
 import { ImagePreviewDialog } from '@/components/ImagePreviewDialog';
 import { Combobox } from '@/components/ui/combobox';
 import { ArrowLeft, Save, Plus, Trash2, X, Upload, ImageIcon, GripVertical } from 'lucide-react';
-import { updateRecipeCalculations, convertUnit, canConvertUnits, convertToMl, getFlavorTagLabel } from '@/utils/calculations';
+import { updateRecipeCalculations, convertUnit, canConvertUnits, convertToMl } from '@/utils/calculations';
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
+import { useAllSystemConfigOptions } from '@/hooks/useSystemConfig';
 import {
   DndContext,
   closestCenter,
@@ -53,12 +54,14 @@ function SortableIngredientItem({
   ingredient,
   index,
   ingredients,
+  unitOptions,
   onIngredientChange,
   onRemove,
 }: {
   ingredient: RecipeIngredient;
   index: number;
   ingredients?: any[];
+  unitOptions?: Array<{ value: string; label: string }>;
   onIngredientChange: (index: number, field: keyof RecipeIngredient, value: any) => void;
   onRemove: (index: number) => void;
 }) {
@@ -125,11 +128,11 @@ function SortableIngredientItem({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ml">毫升 (ml)</SelectItem>
-            <SelectItem value="oz">盎司 (oz)</SelectItem>
-            <SelectItem value="cl">厘升 (cl)</SelectItem>
-            <SelectItem value="dash">滴 (dash)</SelectItem>
-            <SelectItem value="piece">个 (piece)</SelectItem>
+            {unitOptions?.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            )) || <SelectItem value="loading" disabled>加载中...</SelectItem>}
           </SelectContent>
         </Select>
       </div>
@@ -149,6 +152,10 @@ export default function RecipeEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  
+  // 加载所有系统配置选项
+  const configOptions = useAllSystemConfigOptions();
+  
   const [recipe, setRecipe] = useState<Partial<Recipe>>({
     name: '',
     nameEn: '',
@@ -545,13 +552,10 @@ export default function RecipeEditor() {
             <div className="space-y-2">
               <Label>风味标签</Label>
               <MultiSelect
-                options={[
-                  { label: getFlavorTagLabel('sour'), value: 'sour' },
-                  { label: getFlavorTagLabel('sweet'), value: 'sweet' },
-                  { label: getFlavorTagLabel('dry'), value: 'dry' },
-                  { label: getFlavorTagLabel('aromatic'), value: 'aromatic' },
-                  { label: getFlavorTagLabel('highball'), value: 'highball' },
-                ]}
+                options={configOptions.flavorTags?.map(tag => ({
+                  label: tag.label,
+                  value: tag.value
+                })) || []}
                 selected={menuInfo.flavorTags || []}
                 onChange={(selected) => setMenuInfo({ ...menuInfo, flavorTags: selected as FlavorTag[] })}
                 placeholder="选择风味标签..."
@@ -570,8 +574,11 @@ export default function RecipeEditor() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="short">短饮</SelectItem>
-                    <SelectItem value="long">长饮</SelectItem>
+                    {configOptions.drinkDurations?.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    )) || <SelectItem value="loading" disabled>加载中...</SelectItem>}
                   </SelectContent>
                 </Select>
               </div>
@@ -594,17 +601,11 @@ export default function RecipeEditor() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="rocks">古典杯</SelectItem>
-                    <SelectItem value="highball">嗨棒杯</SelectItem>
-                    <SelectItem value="martini">马天尼杯</SelectItem>
-                    <SelectItem value="flute">笛型杯</SelectItem>
-                    <SelectItem value="wine">葡萄酒杯</SelectItem>
-                    <SelectItem value="shot">一口杯</SelectItem>
-                    <SelectItem value="margarita">玛格丽特杯</SelectItem>
-                    <SelectItem value="hurricane">飓风杯</SelectItem>
-                    <SelectItem value="tiki">迈泰杯</SelectItem>
-                    <SelectItem value="julep">圆柱形金属杯</SelectItem>
-                    <SelectItem value="coupe">平底杯</SelectItem>
+                    {configOptions.glassTypes?.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    )) || <SelectItem value="loading" disabled>加载中...</SelectItem>}
                   </SelectContent>
                 </Select>
               </div>
@@ -747,6 +748,7 @@ export default function RecipeEditor() {
                         ingredient={ing}
                         index={index}
                         ingredients={ingredients}
+                        unitOptions={configOptions.units}
                         onIngredientChange={handleIngredientChange}
                         onRemove={handleRemoveIngredient}
                       />

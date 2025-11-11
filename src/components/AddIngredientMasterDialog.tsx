@@ -13,6 +13,7 @@ import {
 import { db } from '@/db/database';
 import { IngredientMaster, SpiritType, Unit } from '@/types';
 import { calculateUnitPrice } from '@/utils/calculations';
+import { useSystemConfigOptions } from '@/hooks/useSystemConfig';
 
 interface AddIngredientMasterDialogProps {
   open: boolean;
@@ -20,31 +21,14 @@ interface AddIngredientMasterDialogProps {
   editingIngredient?: IngredientMaster;
 }
 
-const categoryOptions: Array<{ value: SpiritType; label: string }> = [
-  { value: 'spirit', label: '基酒' },
-  { value: 'liqueur', label: '利口酒' },
-  { value: 'other_alcohol', label: '其他酒类' },
-  { value: 'essence', label: '香精' },
-  { value: 'juice', label: '果汁' },
-  { value: 'soda', label: '汽水' },
-  { value: 'syrup', label: '糖浆' },
-  { value: 'garnish', label: '装饰' },
-  { value: 'other', label: '其他' },
-];
-
-const unitOptions: Array<{ value: Unit; label: string }> = [
-  { value: 'ml', label: '毫升 (ml)' },
-  { value: 'oz', label: '盎司 (oz)' },
-  { value: 'cl', label: '厘升 (cl)' },
-  { value: 'dash', label: '滴 (dash)' },
-  { value: 'piece', label: '个 (piece)' },
-];
-
 export default function AddIngredientMasterDialog({
   open,
   onOpenChange,
   editingIngredient,
 }: AddIngredientMasterDialogProps) {
+  // 使用自定义 Hook 动态加载配置
+  const categoryOptions = useSystemConfigOptions('spiritType');
+  const unitOptions = useSystemConfigOptions('unit');
   const [formData, setFormData] = useState<Partial<IngredientMaster>>({
     name: '',
     nameEn: '',
@@ -172,11 +156,11 @@ export default function AddIngredientMasterDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {categoryOptions.map((option) => (
+                  {categoryOptions?.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
-                  ))}
+                  )) || <SelectItem value="loading" disabled>加载中...</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
@@ -193,11 +177,11 @@ export default function AddIngredientMasterDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {unitOptions.map((option) => (
+                  {unitOptions?.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
-                  ))}
+                  )) || <SelectItem value="loading" disabled>加载中...</SelectItem>}
                 </SelectContent>
               </Select>
             </div>

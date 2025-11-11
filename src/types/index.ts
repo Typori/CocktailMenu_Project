@@ -1,20 +1,43 @@
-// 单位类型
-export type Unit = 'ml' | 'oz' | 'cl' | 'dash' | 'piece';
+// 单位类型 - 改为动态类型，支持用户自定义
+export type Unit = string;
 
-// 原料分类类型
-export type SpiritType = 'spirit' | 'liqueur' | 'other_alcohol' | 'essence' | 'juice' | 'soda' | 'syrup' | 'garnish' | 'other';
+// 原料分类类型 - 改为动态类型，支持用户自定义
+export type SpiritType = string;
 
-// 口味类型 - 更新为新的标签系统
-export type FlavorTag = 'sour' | 'sweet' | 'dry' | 'aromatic' | 'highball';
+// 口味类型 - 改为动态类型，支持用户自定义
+export type FlavorTag = string;
 
-// 饮用时长类型
-export type DrinkDuration = 'long' | 'short';
+// 饮用时长类型 - 改为动态类型，支持用户自定义
+export type DrinkDuration = string;
 
-// 调制技法
-export type Technique = 'shake' | 'stir' | 'build' | 'blend' | 'muddle' | 'layer';
+// 调制技法 - 改为动态类型，支持用户自定义
+export type Technique = string;
 
-// 杯具类型 - 更新为新的杯型
-export type GlassType = 'rocks' | 'highball' | 'martini' | 'flute' | 'wine' | 'shot' | 'margarita' | 'hurricane' | 'tiki' | 'julep' | 'coupe';
+// 杯具类型 - 改为动态类型，支持用户自定义
+export type GlassType = string;
+
+// 系统配置类型
+export type SystemConfigType = 'spiritType' | 'unit' | 'flavorTag' | 'drinkDuration' | 'glassType' | 'technique';
+
+// 系统配置接口
+export interface SystemConfig {
+  id?: number;
+  configType: SystemConfigType;
+  value: string;           // 配置值（唯一标识）
+  label: string;           // 显示名称
+  labelEn?: string;        // 英文名称
+  isSystem: boolean;       // 是否系统预设（不可删除）
+  isActive: boolean;       // 是否启用
+  displayOrder: number;    // 显示顺序
+  metadata?: {             // 扩展元数据
+    conversionRate?: number;  // 单位转换率（仅Unit类型）
+    icon?: string;            // 图标
+    color?: string;           // 颜色
+    description?: string;     // 描述
+  };
+  createdAt?: Date;
+  updatedAt?: Date;
+}
 
 // 原料接口
 export interface Ingredient {

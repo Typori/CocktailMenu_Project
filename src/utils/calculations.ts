@@ -1,5 +1,6 @@
 import { Recipe, RecipeIngredient, Ingredient, Unit, FlavorTag, DrinkDuration, GlassType } from '@/types';
 import { db } from '@/db/database';
+import { getConfigLabel } from './systemConfig';
 
 // 单位转换为ml
 export function convertToMl(quantity: number, unit: Unit): number {
@@ -203,53 +204,32 @@ export function formatUnit(unit: Unit): string {
   return unitLabels[unit] || unit;
 }
 
-// 获取单位的中文标签（用于下拉菜单）
-export function getUnitLabel(unit: Unit): string {
-  const unitLabels: Record<Unit, string> = {
-    ml: '毫升 (ml)',
-    oz: '盎司 (oz)',
-    cl: '厘升 (cl)',
-    dash: '滴 (dash)',
-    piece: '个 (piece)',
-  };
-  return unitLabels[unit] || unit;
+// 获取单位的中文标签（用于下拉菜单）- 使用动态配置
+export async function getUnitLabel(unit: Unit): Promise<string> {
+  return await getConfigLabel('unit', unit);
 }
 
-// 获取风味标签的中文标签
-export function getFlavorTagLabel(tag: FlavorTag): string {
-  const labels: Record<FlavorTag, string> = {
-    sour: '酸',
-    sweet: '甜/果香',
-    dry: '干',
-    aromatic: '芳香',
-    highball: '嗨棒',
-  };
-  return labels[tag] || tag;
+// 获取风味标签的中文标签 - 使用动态配置
+export async function getFlavorTagLabel(tag: FlavorTag): Promise<string> {
+  return await getConfigLabel('flavorTag', tag);
 }
 
-// 获取饮用时长的中文标签
-export function getDrinkDurationLabel(duration: DrinkDuration): string {
-  const labels: Record<DrinkDuration, string> = {
-    long: '长饮',
-    short: '短饮',
-  };
-  return labels[duration] || duration;
+// 获取饮用时长的中文标签 - 使用动态配置
+export async function getDrinkDurationLabel(duration: DrinkDuration): Promise<string> {
+  return await getConfigLabel('drinkDuration', duration);
 }
 
-// 获取杯型的中文标签
-export function getGlassTypeLabel(glassType: GlassType): string {
-  const labels: Record<GlassType, string> = {
-    rocks: '古典杯',
-    highball: '嗨棒杯',
-    martini: '马天尼杯',
-    flute: '笛型杯',
-    wine: '葡萄酒杯',
-    shot: '一口杯',
-    margarita: '玛格丽特杯',
-    hurricane: '飓风杯',
-    tiki: '迈泰杯',
-    julep: '圆柱形金属杯',
-    coupe: '平底杯',
-  };
-  return labels[glassType] || glassType;
+// 获取杯型的中文标签 - 使用动态配置
+export async function getGlassTypeLabel(glassType: GlassType): Promise<string> {
+  return await getConfigLabel('glassType', glassType);
+}
+
+// 获取原料分类的中文标签 - 使用动态配置
+export async function getSpiritTypeLabel(spiritType: string): Promise<string> {
+  return await getConfigLabel('spiritType', spiritType);
+}
+
+// 获取调制技法的中文标签 - 使用动态配置
+export async function getTechniqueLabel(technique: string): Promise<string> {
+  return await getConfigLabel('technique', technique);
 }

@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { db } from '@/db/database';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNotificationSettings } from '@/hooks/useNotificationSettings';
+import { SystemConfigManager } from '@/components/SystemConfigManager';
 import {
   Select,
   SelectContent,
@@ -138,6 +139,9 @@ export default function Settings() {
           <AlertDescription>{message.text}</AlertDescription>
         </Alert>
       )}
+
+      {/* 系统配置管理 - 全宽显示 */}
+      <SystemConfigManager />
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* 外观设置 */}
