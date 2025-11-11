@@ -26,7 +26,6 @@ export interface SystemConfig {
   value: string;           // 配置值（唯一标识）
   label: string;           // 显示名称
   labelEn?: string;        // 英文名称
-  isSystem: boolean;       // 是否系统预设（不可删除）
   isActive: boolean;       // 是否启用
   displayOrder: number;    // 显示顺序
   metadata?: {             // 扩展元数据

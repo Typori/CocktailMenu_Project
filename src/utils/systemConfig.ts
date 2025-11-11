@@ -8,8 +8,9 @@ export async function getConfigOptions(
   configType: SystemConfigType
 ): Promise<Array<{ value: string; label: string; labelEn?: string }>> {
   const configs = await db.systemConfigs
-    .where('[configType+isActive]')
-    .equals([configType, true])
+    .where('configType')
+    .equals(configType)
+    .and(c => c.isActive === true)
     .sortBy('displayOrder');
   
   return configs.map(c => ({
@@ -107,12 +108,19 @@ export async function checkConfigUsage(config: SystemConfig): Promise<number> {
 }
 
 /**
- * 删除配置项（带数据保护）
+ * 删除配置项（带数据迁移）
+ * @param configId 要删除的配置ID
+ * @param migrateToValue 迁移目标值，null表示置空，undefined表示检查是否需要迁移
  */
-export async function deleteConfig(configId: number): Promise<{
+export async function deleteConfig(
+  configId: number,
+  migrateToValue?: string | null
+): Promise<{
   success: boolean;
   message: string;
-  action: 'disabled' | 'deleted' | 'error';
+  usageCount?: number;
+  configType?: SystemConfigType;
+  configLabel?: string;
 }> {
   try {
     const config = await db.systemConfigs.get(configId);
@@ -120,50 +128,43 @@ export async function deleteConfig(configId: number): Promise<{
     if (!config) {
       return {
         success: false,
-        message: '配置项不存在',
-        action: 'error'
+        message: '配置项不存在'
       };
     }
     
-    // 1. 检查是否为系统预设
-    if (config.isSystem) {
-      return {
-        success: false,
-        message: '系统预设配置不可删除，只能禁用',
-        action: 'error'
-      };
-    }
-    
-    // 2. 检查是否有数据在使用
+    // 检查是否有数据在使用
     const usageCount = await checkConfigUsage(config);
     
     if (usageCount > 0) {
-      // 软删除（禁用）
-      await db.systemConfigs.update(configId, { 
-        isActive: false,
-        updatedAt: new Date() 
-      });
+      // 如果没有指定迁移目标，返回需要用户选择
+      if (migrateToValue === undefined) {
+        return {
+          success: false,
+          message: '需要迁移数据',
+          usageCount,
+          configType: config.configType,
+          configLabel: config.label
+        };
+      }
       
-      return {
-        success: true,
-        message: `已禁用该配置，${usageCount}条数据仍在使用中`,
-        action: 'disabled'
-      };
-    } else {
-      // 真删除
-      await db.systemConfigs.delete(configId);
-      return {
-        success: true,
-        message: '删除成功',
-        action: 'deleted'
-      };
+      // 执行数据迁移（可能是迁移到其他值，也可能是置空）
+      await migrateConfigValue(config, migrateToValue);
     }
+    
+    // 删除配置项
+    await db.systemConfigs.delete(configId);
+    
+    return {
+      success: true,
+      message: usageCount > 0 
+        ? `已删除配置并${migrateToValue ? '迁移' : '清空'}了 ${usageCount} 处数据`
+        : '删除成功'
+    };
   } catch (error) {
     console.error('删除配置失败:', error);
     return {
       success: false,
-      message: `删除失败: ${error}`,
-      action: 'error'
+      message: `删除失败: ${error}`
     };
   }
 }
@@ -221,11 +222,11 @@ export async function enableConfig(configId: number): Promise<{
 }
 
 /**
- * 数据迁移：将旧配置值迁移到新配置值
+ * 数据迁移：将旧配置值迁移到新配置值（支持置空）
  */
 export async function migrateConfigValue(
   oldConfig: SystemConfig, 
-  newValue: string
+  newValue: string | null
 ): Promise<void> {
   const oldValue = oldConfig.value;
   
@@ -234,14 +235,14 @@ export async function migrateConfigValue(
       // 更新所有使用该分类的原料
       await db.ingredientMaster
         .where('category').equals(oldValue)
-        .modify({ category: newValue });
+        .modify({ category: newValue || '' });
       break;
       
     case 'unit':
       // 更新原料主数据
       await db.ingredientMaster
         .where('unit').equals(oldValue)
-        .modify({ unit: newValue });
+        .modify({ unit: newValue || '' });
       
       // 更新配方中的配料单位
       const recipes = await db.recipes.toArray();
@@ -250,7 +251,7 @@ export async function migrateConfigValue(
         const updatedIngredients = recipe.ingredients?.map(ing => {
           if (ing.unit === oldValue) {
             modified = true;
-            return { ...ing, unit: newValue };
+            return { ...ing, unit: newValue || '' };
           }
           return ing;
         });
@@ -269,9 +270,10 @@ export async function migrateConfigValue(
       const menuInfos = await db.menuInfo.toArray();
       for (const menu of menuInfos) {
         if (menu.flavorTags?.includes(oldValue)) {
-          const updatedTags = menu.flavorTags.map(tag => 
-            tag === oldValue ? newValue : tag
-          );
+          // 如果是置空，则移除该标签；否则替换
+          const updatedTags = newValue 
+            ? menu.flavorTags.map(tag => tag === oldValue ? newValue : tag)
+            : menu.flavorTags.filter(tag => tag !== oldValue);
           await db.menuInfo.update(menu.id!, { 
             flavorTags: updatedTags,
             updatedAt: new Date()
@@ -284,7 +286,7 @@ export async function migrateConfigValue(
       await db.recipes
         .where('glassType').equals(oldValue)
         .modify({ 
-          glassType: newValue,
+          glassType: newValue || '',
           updatedAt: new Date()
         });
       break;
@@ -294,7 +296,7 @@ export async function migrateConfigValue(
       for (const menu of menus) {
         if (menu.drinkDuration === oldValue) {
           await db.menuInfo.update(menu.id!, { 
-            drinkDuration: newValue,
+            drinkDuration: newValue || '',
             updatedAt: new Date()
           });
         }
@@ -305,7 +307,7 @@ export async function migrateConfigValue(
       await db.recipes
         .where('technique').equals(oldValue)
         .modify({ 
-          technique: newValue,
+          technique: newValue || '',
           updatedAt: new Date()
         });
       break;
@@ -334,13 +336,6 @@ export async function updateConfig(
     
     // 如果修改了value，需要迁移数据
     if (updates.value && updates.value !== config.value) {
-      if (config.isSystem) {
-        return {
-          success: false,
-          message: '系统预设配置的value不可修改'
-        };
-      }
-      
       // 执行数据迁移
       await migrateConfigValue(config, updates.value);
     }

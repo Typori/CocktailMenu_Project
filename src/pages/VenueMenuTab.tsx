@@ -24,8 +24,9 @@ import {
 } from '@/components/ui/select';
 import { db } from '@/db/database';
 import { VenueRecipe, FlavorTag, DrinkDuration, GlassType } from '@/types';
-import { formatCurrency, getFlavorTagLabel } from '@/utils/calculations';
+import { formatCurrency, getConfigLabelFromMap } from '@/utils/calculations';
 import { exportVenueMenuToPDF } from '@/utils/pdfExport';
+import { useConfigLabelMap } from '@/hooks/useSystemConfig';
 import {
   DndContext,
   closestCenter,
@@ -59,6 +60,7 @@ function SortableVenueRecipeCard({
   onRemove,
   onEditPrice,
   onViewRecipe,
+  flavorTagMap,
 }: {
   recipe: any;
   venueRecipe: VenueRecipe;
@@ -67,6 +69,7 @@ function SortableVenueRecipeCard({
   onRemove: (id: number) => void;
   onEditPrice: (venueRecipe: VenueRecipe) => void;
   onViewRecipe: (recipeId: number) => void;
+  flavorTagMap: Map<string, string> | undefined;
 }) {
   const {
     attributes,
@@ -121,7 +124,7 @@ function SortableVenueRecipeCard({
                   <div className="flex flex-wrap gap-1 justify-end">
                     {recipe.menuInfo.flavorTags.map((tag: FlavorTag) => (
                       <Badge key={tag} variant="secondary" className="text-xs">
-                        {getFlavorTagLabel(tag)}
+                        {getConfigLabelFromMap(flavorTagMap, tag)}
                       </Badge>
                     ))}
                   </div>
@@ -153,7 +156,7 @@ function SortableVenueRecipeCard({
                     <div className="flex flex-wrap gap-1 justify-end">
                       {recipe.menuInfo.flavorTags.map((tag: FlavorTag) => (
                         <Badge key={tag} variant="secondary" className="text-xs">
-                          {getFlavorTagLabel(tag)}
+                          {getConfigLabelFromMap(flavorTagMap, tag)}
                         </Badge>
                       ))}
                     </div>
@@ -214,6 +217,10 @@ function SortableVenueRecipeCard({
 
 export default function VenueMenuTab({ venueId, activeTab, onTabChange }: VenueMenuTabProps) {
   const navigate = useNavigate();
+  
+  // 获取配置标签映射
+  const flavorTagMap = useConfigLabelMap('flavorTag');
+  
   const [isAddRecipeDialogOpen, setIsAddRecipeDialogOpen] = useState(false);
   const [isPriceDialogOpen, setIsPriceDialogOpen] = useState(false);
   const [editingVenueRecipe, setEditingVenueRecipe] = useState<VenueRecipe | null>(null);
@@ -725,6 +732,7 @@ export default function VenueMenuTab({ venueId, activeTab, onTabChange }: VenueM
                   onRemove={handleRemoveRecipe}
                   onEditPrice={handleOpenPriceDialog}
                   onViewRecipe={(recipeId) => navigate(`/recipes/${recipeId}`, { state: { from: '/venue-management' } })}
+                  flavorTagMap={flavorTagMap}
                 />
               ))}
             </div>

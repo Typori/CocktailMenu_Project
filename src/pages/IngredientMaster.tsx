@@ -5,9 +5,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { db } from '@/db/database';
-import { IngredientMaster, SpiritType } from '@/types';
+import { IngredientMaster } from '@/types';
 import AddIngredientMasterDialog from '@/components/AddIngredientMasterDialog';
+import { getConfigOptions, getConfigLabel } from '@/utils/systemConfig';
 import {
   DndContext,
   closestCenter,
@@ -26,37 +34,16 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-const categoryLabels: Record<SpiritType, string> = {
-  spirit: '基酒',
-  liqueur: '利口酒',
-  other_alcohol: '其他酒类',
-  essence: '香精',
-  juice: '果汁',
-  soda: '汽水',
-  syrup: '糖浆',
-  garnish: '装饰',
-  other: '其他',
-};
-
-const categoryColors: Record<SpiritType, string> = {
-  spirit: 'bg-blue-500',
-  liqueur: 'bg-purple-500',
-  other_alcohol: 'bg-indigo-500',
-  essence: 'bg-pink-500',
-  juice: 'bg-orange-500',
-  soda: 'bg-cyan-500',
-  syrup: 'bg-amber-500',
-  garnish: 'bg-green-500',
-  other: 'bg-gray-500',
-};
 
 interface SortableIngredientProps {
   ingredient: IngredientMaster;
   onEdit: (ingredient: IngredientMaster) => void;
   onDelete: (id: number) => void;
+  categoryLabel: string;
+  categoryColor: string;
 }
 
-function SortableIngredient({ ingredient, onEdit, onDelete }: SortableIngredientProps) {
+function SortableIngredient({ ingredient, onEdit, onDelete, categoryLabel, categoryColor }: SortableIngredientProps) {
   const {
     attributes,
     listeners,
@@ -88,8 +75,8 @@ function SortableIngredient({ ingredient, onEdit, onDelete }: SortableIngredient
               )}
             </div>
             <div className="flex items-center gap-2 flex-wrap mb-2">
-              <Badge className={categoryColors[ingredient.category]}>
-                {categoryLabels[ingredient.category]}
+              <Badge className={categoryColor}>
+                {categoryLabel}
               </Badge>
               {ingredient.alcoholContent !== undefined && ingredient.alcoholContent > 0 && (
                 <span className="text-sm text-muted-foreground">
@@ -149,9 +136,14 @@ export default function IngredientMasterPage() {
   const [ingredients, setIngredients] = useState<IngredientMaster[]>([]);
   const [filteredIngredients, setFilteredIngredients] = useState<IngredientMaster[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<SpiritType | 'all'>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingIngredient, setEditingIngredient] = useState<IngredientMaster | undefined>();
+  const [categories, setCategories] = useState<Array<{ value: string; label: string }>>([
+    { value: 'all', label: '全部' }
+  ]);
+  const [categoryLabels, setCategoryLabels] = useState<Record<string, string>>({});
+  const [categoryColors, setCategoryColors] = useState<Record<string, string>>({});
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -163,6 +155,52 @@ export default function IngredientMasterPage() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+
+  // 加载分类配置
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const configs = await getConfigOptions('spiritType');
+        console.log('加载的分类配置:', configs);
+        const cats = [
+          { value: 'all', label: '全部' },
+          ...configs.map(c => ({ value: c.value, label: c.label }))
+        ];
+        setCategories(cats);
+        
+        // 构建标签映射
+        const labels: Record<string, string> = {};
+        configs.forEach(c => {
+          labels[c.value] = c.label;
+        });
+        setCategoryLabels(labels);
+        
+        // 构建颜色映射
+        const colors: Record<string, string> = {};
+        const colorPalette = [
+          'bg-blue-500',
+          'bg-purple-500',
+          'bg-indigo-500',
+          'bg-pink-500',
+          'bg-orange-500',
+          'bg-cyan-500',
+          'bg-amber-500',
+          'bg-green-500',
+          'bg-red-500',
+          'bg-teal-500',
+          'bg-violet-500',
+          'bg-lime-500',
+        ];
+        configs.forEach((c, index) => {
+          colors[c.value] = colorPalette[index % colorPalette.length];
+        });
+        setCategoryColors(colors);
+      } catch (error) {
+        console.error('加载分类配置失败:', error);
+      }
+    };
+    loadCategories();
+  }, []);
 
   const loadIngredients = async () => {
     const data = await db.ingredientMaster.orderBy('displayOrder').toArray();
@@ -246,17 +284,6 @@ export default function IngredientMasterPage() {
     loadIngredients();
   };
 
-  const categories: Array<{ value: SpiritType | 'all'; label: string }> = [
-    { value: 'all', label: '全部' },
-    { value: 'spirit', label: '基酒' },
-    { value: 'liqueur', label: '利口酒' },
-    { value: 'juice', label: '果汁' },
-    { value: 'syrup', label: '糖浆' },
-    { value: 'soda', label: '汽水' },
-    { value: 'garnish', label: '装饰' },
-    { value: 'other', label: '其他' },
-  ];
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -285,19 +312,18 @@ export default function IngredientMasterPage() {
             className="pl-9"
           />
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          {categories.map(cat => (
-            <Button
-              key={cat.value}
-              variant={selectedCategory === cat.value ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSelectedCategory(cat.value)}
-              className="whitespace-nowrap touch-feedback"
-            >
-              {cat.label}
-            </Button>
-          ))}
-        </div>
+        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+          <SelectTrigger className="w-full sm:w-[200px]">
+            <SelectValue placeholder="选择分类..." />
+          </SelectTrigger>
+          <SelectContent>
+            {categories.map(cat => (
+              <SelectItem key={cat.value} value={cat.value}>
+                {cat.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="flex items-center justify-between text-sm text-muted-foreground">
@@ -315,12 +341,14 @@ export default function IngredientMasterPage() {
           strategy={verticalListSortingStrategy}
         >
           <div className="space-y-2">
-            {filteredIngredients.map(ingredient => (
+            {filteredIngredients.map((ingredient) => (
               <SortableIngredient
                 key={ingredient.id}
                 ingredient={ingredient}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                categoryLabel={categoryLabels[ingredient.category] || ingredient.category}
+                categoryColor={categoryColors[ingredient.category] || 'bg-gray-500'}
               />
             ))}
           </div>

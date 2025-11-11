@@ -9,6 +9,7 @@ import {
   enableConfig,
   addConfig,
   updateConfig,
+  updateConfigOrders,
 } from '@/utils/systemConfig';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -40,7 +41,24 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Edit, Trash2, GripVertical, AlertTriangle } from 'lucide-react';
+import { Plus, Edit, Trash2, GripVertical, AlertTriangle, ArrowRight } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface ConfigItemProps {
   config: SystemConfig;
@@ -50,6 +68,20 @@ interface ConfigItemProps {
 }
 
 function ConfigItem({ config, onEdit, onDelete, onToggle }: ConfigItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: config.id! });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
   const [usageCount, setUsageCount] = useState(0);
 
   useEffect(() => {
@@ -57,9 +89,15 @@ function ConfigItem({ config, onEdit, onDelete, onToggle }: ConfigItemProps) {
   }, [config]);
 
   return (
-    <div className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors">
+    <div 
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors bg-background"
+    >
       <div className="flex items-center gap-3 flex-1">
-        <GripVertical className="h-5 w-5 text-muted-foreground cursor-move" />
+        <div {...attributes} {...listeners} className="cursor-move">
+          <GripVertical className="h-5 w-5 text-muted-foreground" />
+        </div>
         <div className="flex-1">
           <div className="font-medium flex items-center gap-2">
             {config.label}
@@ -71,9 +109,6 @@ function ConfigItem({ config, onEdit, onDelete, onToggle }: ConfigItemProps) {
             <span>值: {config.value}</span>
             {usageCount > 0 && (
               <span className="text-orange-600">• 使用中: {usageCount}处</span>
-            )}
-            {config.isSystem && (
-              <span className="text-blue-600">• 系统预设</span>
             )}
           </div>
         </div>
@@ -95,7 +130,6 @@ function ConfigItem({ config, onEdit, onDelete, onToggle }: ConfigItemProps) {
           variant="ghost"
           size="sm"
           onClick={() => onDelete(config)}
-          disabled={config.isSystem}
           className="text-destructive hover:text-destructive"
         >
           <Trash2 className="h-4 w-4" />
@@ -112,12 +146,22 @@ export function SystemConfigManager() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isMigrateDialogOpen, setIsMigrateDialogOpen] = useState(false);
+  const [usageCount, setUsageCount] = useState(0);
+  const [migrateTarget, setMigrateTarget] = useState<string | null>(null); // null表示未选择，''表示置空，其他值表示迁移目标
 
   const [formData, setFormData] = useState({
     value: '',
     label: '',
     labelEn: '',
   });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const configTypes: Array<{ value: SystemConfigType; label: string }> = [
     { value: 'spiritType', label: '原料分类' },
@@ -152,9 +196,21 @@ export function SystemConfigManager() {
     setIsEditDialogOpen(true);
   };
 
-  const handleDelete = (config: SystemConfig) => {
+  const handleDelete = async (config: SystemConfig) => {
     setDeletingConfig(config);
-    setIsDeleteDialogOpen(true);
+    
+    // 先检查使用情况
+    const count = await checkConfigUsage(config);
+    setUsageCount(count);
+    
+    if (count > 0) {
+      // 有数据在使用，打开迁移对话框
+      setMigrateTarget(null); // 重置为未选择状态
+      setIsMigrateDialogOpen(true);
+    } else {
+      // 没有数据使用，直接确认删除
+      setIsDeleteDialogOpen(true);
+    }
   };
 
   const handleToggle = async (config: SystemConfig) => {
@@ -167,6 +223,27 @@ export function SystemConfigManager() {
     } else {
       alert(`操作失败: ${result.message}`);
     }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id || !configs) {
+      return;
+    }
+
+    const oldIndex = configs.findIndex((c) => c.id === active.id);
+    const newIndex = configs.findIndex((c) => c.id === over.id);
+
+    const newConfigs = arrayMove(configs, oldIndex, newIndex);
+
+    // 更新显示顺序
+    const updates = newConfigs.map((config, index) => ({
+      id: config.id!,
+      displayOrder: index,
+    }));
+
+    await updateConfigOrders(updates);
   };
 
   const handleAddSubmit = async () => {
@@ -182,7 +259,6 @@ export function SystemConfigManager() {
       value: formData.value,
       label: formData.label,
       labelEn: formData.labelEn || undefined,
-      isSystem: false,
       isActive: true,
       displayOrder: maxOrder + 1,
     });
@@ -222,15 +298,38 @@ export function SystemConfigManager() {
       setIsDeleteDialogOpen(false);
     } else {
       alert(`操作失败: ${result.message}`);
+      setIsDeleteDialogOpen(false);
     }
   };
+
+  const handleMigrateAndDelete = async () => {
+    if (!deletingConfig || migrateTarget === null) {
+      alert('请选择迁移目标或选择清空数据');
+      return;
+    }
+
+    // migrateTarget为空字符串表示置空，否则迁移到指定值
+    const targetValue = migrateTarget === '' ? null : migrateTarget;
+    
+    const result = await deleteConfig(deletingConfig.id!, targetValue);
+
+    if (result.success) {
+      setIsMigrateDialogOpen(false);
+      alert(result.message);
+    } else {
+      alert(`操作失败: ${result.message}`);
+    }
+  };
+
+  // 获取可迁移的目标配置（排除当前要删除的）
+  const availableTargets = configs?.filter(c => c.id !== deletingConfig?.id && c.isActive) || [];
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>下拉菜单配置</CardTitle>
         <CardDescription>
-          管理系统中所有下拉菜单的选项。系统预设配置不可删除，但可以禁用。
+          管理系统中所有下拉菜单的选项。可以拖拽调整顺序。
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -252,22 +351,33 @@ export function SystemConfigManager() {
         </div>
 
         {/* 配置列表 */}
-        <div className="space-y-2">
-          {configs?.map((config) => (
-            <ConfigItem
-              key={config.id}
-              config={config}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              onToggle={handleToggle}
-            />
-          ))}
-          {configs?.length === 0 && (
-            <div className="text-center text-muted-foreground py-8">
-              暂无配置项
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={configs?.map((c) => c.id!) || []}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-2">
+              {configs?.map((config) => (
+                <ConfigItem
+                  key={config.id}
+                  config={config}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  onToggle={handleToggle}
+                />
+              ))}
+              {configs?.length === 0 && (
+                <div className="text-center text-muted-foreground py-8">
+                  暂无配置项
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </SortableContext>
+        </DndContext>
 
         {/* 添加按钮 */}
         <Button onClick={handleAdd} className="w-full">
@@ -373,7 +483,7 @@ export function SystemConfigManager() {
         </DialogContent>
       </Dialog>
 
-      {/* 删除确认对话框 */}
+      {/* 删除确认对话框（无数据使用时） */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -381,47 +491,136 @@ export function SystemConfigManager() {
               <AlertTriangle className="h-5 w-5 text-destructive" />
               删除确认
             </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              {deletingConfig?.isSystem ? (
-                <div className="space-y-2">
-                  <p>
-                    <strong>{deletingConfig.label}</strong> 是系统预设配置，不能删除。
-                  </p>
-                  <p>你可以选择禁用它，这样新建时就不会显示此选项，但已有数据仍然保留。</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <p>
-                    确定要删除 <strong>{deletingConfig?.label}</strong> 吗？
-                  </p>
-                  <p className="text-sm">
-                    如果有数据正在使用此配置，系统会自动禁用而不是删除，以保护数据完整性。
-                  </p>
-                </div>
-              )}
+            <AlertDialogDescription>
+              确定要删除 <strong>{deletingConfig?.label}</strong> 吗？此操作不可撤销。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            {deletingConfig?.isSystem ? (
-              <AlertDialogAction
-                onClick={async () => {
-                  if (deletingConfig) {
-                    await handleToggle(deletingConfig);
-                    setIsDeleteDialogOpen(false);
-                  }
-                }}
-              >
-                禁用配置
-              </AlertDialogAction>
-            ) : (
-              <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                确认删除
-              </AlertDialogAction>
-            )}
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              确认删除
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 数据迁移对话框（有数据使用时） */}
+      <Dialog open={isMigrateDialogOpen} onOpenChange={setIsMigrateDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-600" />
+              删除配置 - 数据迁移
+            </DialogTitle>
+            <DialogDescription className="space-y-3 pt-2">
+              <div className="rounded-lg bg-orange-50 border border-orange-200 p-3">
+                <p className="text-sm text-orange-800">
+                  <strong>{deletingConfig?.label}</strong> 正在被 <strong className="text-orange-600">{usageCount}</strong> 处数据使用
+                </p>
+              </div>
+              <p className="text-sm">
+                删除前需要处理这些数据，请选择以下操作之一：
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* 选项1: 迁移到其他配置 */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-600 text-sm font-medium">
+                  1
+                </div>
+                <Label className="text-base font-medium">迁移到其他配置（推荐）</Label>
+              </div>
+              <div className="ml-8 space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  将所有使用 <strong>{deletingConfig?.label}</strong> 的数据自动更新为：
+                </p>
+                <Select 
+                  value={migrateTarget === null ? undefined : migrateTarget} 
+                  onValueChange={setMigrateTarget}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择目标配置..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableTargets.map((config) => (
+                      <SelectItem key={config.id} value={config.value}>
+                        <div className="flex items-center gap-2">
+                          <span>{config.label}</span>
+                          {config.labelEn && (
+                            <span className="text-xs text-muted-foreground">({config.labelEn})</span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* 分隔线 */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">或</span>
+              </div>
+            </div>
+
+            {/* 选项2: 直接删除并置空 */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-red-600 text-sm font-medium">
+                  2
+                </div>
+                <Label className="text-base font-medium text-destructive">直接删除并清空数据</Label>
+              </div>
+              <div className="ml-8 space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  删除配置，并将所有使用该配置的数据字段置空
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMigrateTarget('')}
+                  className={migrateTarget === '' ? 'border-red-500 bg-red-50' : ''}
+                >
+                  {migrateTarget === '' ? '✓ 已选择清空数据' : '选择此选项'}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setIsMigrateDialogOpen(false)}>
+              取消
+            </Button>
+            <Button
+              variant="default"
+              onClick={handleMigrateAndDelete}
+              disabled={migrateTarget === null}
+              className="gap-2"
+            >
+              {migrateTarget && migrateTarget !== '' ? (
+                <>
+                  <ArrowRight className="h-4 w-4" />
+                  迁移并删除
+                </>
+              ) : migrateTarget === '' ? (
+                <>
+                  <Trash2 className="h-4 w-4" />
+                  清空并删除
+                </>
+              ) : (
+                <>请先选择操作</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

@@ -16,8 +16,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Plus, Search, Star, Edit, Trash2, Copy, Filter, X, GripVertical, Check, BookOpen } from 'lucide-react';
-import { formatCurrency, getFlavorTagLabel, getDrinkDurationLabel, getGlassTypeLabel } from '@/utils/calculations';
+import { formatCurrency, getConfigLabelFromMap } from '@/utils/calculations';
 import { FlavorTag, DrinkDuration, GlassType } from '@/types';
+import { useAllConfigLabelMaps } from '@/hooks/useSystemConfig';
 import {
   DndContext,
   closestCenter,
@@ -43,12 +44,14 @@ function SortableRecipeCard({
   onToggleFavorite,
   onDuplicate,
   onDelete,
+  flavorTagMap,
 }: {
   recipe: any;
   isSortMode: boolean;
   onToggleFavorite: (id: number, currentStatus: boolean | undefined) => void;
   onDuplicate: (recipe: any) => void;
   onDelete: (id: number) => void;
+  flavorTagMap: Map<string, string> | undefined;
 }) {
   const {
     attributes,
@@ -95,7 +98,7 @@ function SortableRecipeCard({
                 <div className="flex flex-wrap gap-1 justify-end">
                   {recipe.menuInfo.flavorTags.map((tag: FlavorTag) => (
                     <Badge key={tag} variant="secondary" className="text-xs">
-                      {getFlavorTagLabel(tag)}
+                      {getConfigLabelFromMap(flavorTagMap, tag)}
                     </Badge>
                   ))}
                 </div>
@@ -122,7 +125,7 @@ function SortableRecipeCard({
                   <div className="flex flex-wrap gap-1 justify-end">
                     {recipe.menuInfo.flavorTags.map((tag: FlavorTag) => (
                       <Badge key={tag} variant="secondary" className="text-xs">
-                        {getFlavorTagLabel(tag)}
+                        {getConfigLabelFromMap(flavorTagMap, tag)}
                       </Badge>
                     ))}
                   </div>
@@ -191,6 +194,9 @@ export default function Recipes() {
   
   // 滚动位置恢复
   useContainerScrollRestoration(scrollContainerRef, 'recipes-list');
+  
+  // 获取配置标签映射
+  const { flavorTagMap } = useAllConfigLabelMaps();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -541,6 +547,7 @@ export default function Recipes() {
                   onToggleFavorite={handleToggleFavorite}
                   onDuplicate={handleDuplicate}
                   onDelete={handleDelete}
+                  flavorTagMap={flavorTagMap}
                 />
               ))}
             </div>

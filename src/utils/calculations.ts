@@ -204,6 +204,13 @@ export function formatUnit(unit: Unit): string {
   return unitLabels[unit] || unit;
 }
 
+// 从配置Map中获取标签（同步版本，用于渲染）
+export function getConfigLabelFromMap(map: Map<string, string> | undefined, value: string, fallback: string = value): string {
+  if (!map) return fallback;
+  return map.get(value) || fallback;
+}
+
+// 以下函数保留用于向后兼容，但建议在组件中使用 useConfigLabelMap + getConfigLabelFromMap
 // 获取单位的中文标签（用于下拉菜单）- 使用动态配置
 export async function getUnitLabel(unit: Unit): Promise<string> {
   return await getConfigLabel('unit', unit);

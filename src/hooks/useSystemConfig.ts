@@ -50,3 +50,44 @@ export function useAllSystemConfigOptions() {
     techniques,
   };
 }
+
+/**
+ * Hook: 获取配置标签映射（用于快速查找）
+ */
+export function useConfigLabelMap(configType: SystemConfigType): Map<string, string> | undefined {
+  return useLiveQuery(
+    () =>
+      db.systemConfigs
+        .where('configType')
+        .equals(configType)
+        .and((config) => config.isActive === true)
+        .toArray()
+        .then((configs) => {
+          const map = new Map<string, string>();
+          configs.forEach((c) => map.set(c.value, c.label));
+          return map;
+        }),
+    [configType]
+  );
+}
+
+/**
+ * Hook: 获取所有配置类型的标签映射
+ */
+export function useAllConfigLabelMaps() {
+  const spiritTypeMap = useConfigLabelMap('spiritType');
+  const unitMap = useConfigLabelMap('unit');
+  const flavorTagMap = useConfigLabelMap('flavorTag');
+  const drinkDurationMap = useConfigLabelMap('drinkDuration');
+  const glassTypeMap = useConfigLabelMap('glassType');
+  const techniqueMap = useConfigLabelMap('technique');
+
+  return {
+    spiritTypeMap,
+    unitMap,
+    flavorTagMap,
+    drinkDurationMap,
+    glassTypeMap,
+    techniqueMap,
+  };
+}

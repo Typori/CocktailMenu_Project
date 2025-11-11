@@ -2,35 +2,50 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Recipe, MenuInfo, ExportConfig } from '@/types';
 import { db } from '@/db/database';
+import { getAppVersion } from '@/config/version';
 
 // 导出为JSON（兼容不同数据库版本）
 export async function exportToJson(): Promise<void> {
   const data: any = {
     exportDate: new Date().toISOString(),
-    version: '2.0',
+    version: getAppVersion(),
   };
 
-  // 安全地导出每个表，如果表不存在则跳过
+  // 导出新版本的 ingredientMaster（优先）
+  try {
+    data.ingredientMaster = await db.ingredientMaster.toArray();
+    console.log(`导出 ${data.ingredientMaster.length} 个原料主数据`);
+  } catch (e) {
+    console.warn('Failed to export ingredientMaster:', e);
+  }
+
+  // 为了向后兼容，也导出旧的 ingredients 表（如果存在）
   try {
     data.ingredients = await db.ingredients.toArray();
+    if (data.ingredients.length > 0) {
+      console.log(`导出 ${data.ingredients.length} 个旧版原料数据（向后兼容）`);
+    }
   } catch (e) {
-    console.warn('Failed to export ingredients:', e);
+    console.warn('Failed to export ingredients (old table):', e);
   }
 
   try {
     data.recipes = await db.recipes.toArray();
+    console.log(`导出 ${data.recipes.length} 个配方`);
   } catch (e) {
     console.warn('Failed to export recipes:', e);
   }
 
   try {
     data.menuInfo = await db.menuInfo.toArray();
+    console.log(`导出 ${data.menuInfo.length} 个菜单信息`);
   } catch (e) {
     console.warn('Failed to export menuInfo:', e);
   }
 
   try {
     data.tags = await db.tags.toArray();
+    console.log(`导出 ${data.tags.length} 个标签`);
   } catch (e) {
     console.warn('Failed to export tags:', e);
   }
@@ -53,9 +68,10 @@ export async function exportToJson(): Promise<void> {
     console.warn('Failed to export settings:', e);
   }
 
-  // 新表（可能不存在于旧版本数据库）
+  // 新表
   try {
     data.venues = await db.venues.toArray();
+    console.log(`导出 ${data.venues.length} 个场所`);
   } catch (e) {
     console.warn('Venues table not found (old database version)');
     data.venues = [];
@@ -63,13 +79,31 @@ export async function exportToJson(): Promise<void> {
 
   try {
     data.venueRecipes = await db.venueRecipes.toArray();
+    console.log(`导出 ${data.venueRecipes.length} 个场所配方`);
   } catch (e) {
     console.warn('VenueRecipes table not found (old database version)');
     data.venueRecipes = [];
   }
 
+  try {
+    data.venueIngredients = await db.venueIngredients.toArray();
+    console.log(`导出 ${data.venueIngredients.length} 个场所原料`);
+  } catch (e) {
+    console.warn('VenueIngredients table not found');
+    data.venueIngredients = [];
+  }
+
+  try {
+    data.systemConfigs = await db.systemConfigs.toArray();
+    console.log(`导出 ${data.systemConfigs.length} 个系统配置`);
+  } catch (e) {
+    console.warn('SystemConfigs table not found');
+    data.systemConfigs = [];
+  }
+
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   downloadBlob(blob, `cocktail-menu-backup-${formatDate(new Date())}.json`);
+  console.log('数据导出完成！');
 }
 
 // 从JSON导入
@@ -81,18 +115,85 @@ export async function importFromJson(file: File): Promise<void> {
         const data = JSON.parse(e.target?.result as string);
         
         // 导入数据（使用 bulkPut 会合并/更新现有数据）
-        if (data.ingredients) await db.ingredients.bulkPut(data.ingredients);
-        if (data.recipes) await db.recipes.bulkPut(data.recipes);
-        if (data.menuInfo) await db.menuInfo.bulkPut(data.menuInfo);
-        if (data.tags) await db.tags.bulkPut(data.tags);
-        if (data.inventoryLogs) await db.inventoryLogs.bulkPut(data.inventoryLogs);
-        if (data.makingNotes) await db.makingNotes.bulkPut(data.makingNotes);
-        if (data.settings) await db.settings.bulkPut(data.settings);
-        if (data.venues) await db.venues.bulkPut(data.venues);
-        if (data.venueRecipes) await db.venueRecipes.bulkPut(data.venueRecipes);
         
+        // 优先处理新版本的 ingredientMaster 数据
+        if (data.ingredientMaster && data.ingredientMaster.length > 0) {
+          console.log(`正在导入 ${data.ingredientMaster.length} 个原料主数据...`);
+          await db.ingredientMaster.bulkPut(data.ingredientMaster);
+          console.log('原料主数据导入完成');
+        } 
+        // 如果没有新版数据，则处理旧版本的 ingredients 数据，迁移到 ingredientMaster
+        else if (data.ingredients && data.ingredients.length > 0) {
+          console.log(`正在导入 ${data.ingredients.length} 个原料到 ingredientMaster（旧版本迁移）...`);
+          
+          // 将旧的 ingredients 数据转换为 ingredientMaster 格式
+          const masterIngredients = data.ingredients.map((ing: any) => ({
+            name: ing.name,
+            nameEn: ing.nameEn,
+            category: ing.category,
+            price: ing.price || 0,
+            quantity: ing.quantity || 750,
+            unit: ing.unit,
+            alcoholContent: ing.alcoholContent,
+            wastageRate: ing.wastageRate || 5,
+            unitPrice: ing.unitPrice || (ing.price && ing.quantity ? 
+              ing.price / (ing.quantity * (1 - (ing.wastageRate || 5) / 100)) : 0),
+            displayOrder: ing.displayOrder || ing.id,
+            notes: ing.notes,
+            createdAt: ing.createdAt ? new Date(ing.createdAt) : new Date(),
+            updatedAt: ing.updatedAt ? new Date(ing.updatedAt) : new Date(),
+          }));
+          
+          await db.ingredientMaster.bulkPut(masterIngredients);
+          console.log('原料数据导入完成（从旧版本迁移）');
+        }
+        
+        // 导入其他表数据
+        if (data.recipes) {
+          console.log(`正在导入 ${data.recipes.length} 个配方...`);
+          await db.recipes.bulkPut(data.recipes);
+        }
+        if (data.menuInfo) {
+          console.log(`正在导入 ${data.menuInfo.length} 个菜单信息...`);
+          await db.menuInfo.bulkPut(data.menuInfo);
+        }
+        if (data.tags) {
+          console.log(`正在导入 ${data.tags.length} 个标签...`);
+          await db.tags.bulkPut(data.tags);
+        }
+        if (data.inventoryLogs) {
+          console.log(`正在导入 ${data.inventoryLogs.length} 个库存日志...`);
+          await db.inventoryLogs.bulkPut(data.inventoryLogs);
+        }
+        if (data.makingNotes) {
+          console.log(`正在导入 ${data.makingNotes.length} 个制作笔记...`);
+          await db.makingNotes.bulkPut(data.makingNotes);
+        }
+        if (data.settings) {
+          console.log(`正在导入设置...`);
+          await db.settings.bulkPut(data.settings);
+        }
+        if (data.venues) {
+          console.log(`正在导入 ${data.venues.length} 个场所...`);
+          await db.venues.bulkPut(data.venues);
+        }
+        if (data.venueRecipes) {
+          console.log(`正在导入 ${data.venueRecipes.length} 个场所配方...`);
+          await db.venueRecipes.bulkPut(data.venueRecipes);
+        }
+        if (data.venueIngredients) {
+          console.log(`正在导入 ${data.venueIngredients.length} 个场所原料...`);
+          await db.venueIngredients.bulkPut(data.venueIngredients);
+        }
+        if (data.systemConfigs) {
+          console.log(`正在导入 ${data.systemConfigs.length} 个系统配置...`);
+          await db.systemConfigs.bulkPut(data.systemConfigs);
+        }
+        
+        console.log('✅ 所有数据导入完成！');
         resolve();
       } catch (error) {
+        console.error('导入失败:', error);
         reject(error);
       }
     };

@@ -8,8 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ImagePreviewDialog } from '@/components/ImagePreviewDialog';
 import { ArrowLeft, Edit, Star, Copy, ImageIcon, ChevronLeft, ChevronRight, FileDown } from 'lucide-react';
-import { formatCurrency, getFlavorTagLabel, getDrinkDurationLabel, getGlassTypeLabel } from '@/utils/calculations';
+import { formatCurrency, getConfigLabelFromMap } from '@/utils/calculations';
 import { exportRecipeToPDF } from '@/utils/pdfExport';
+import { useAllConfigLabelMaps } from '@/hooks/useSystemConfig';
 
 export default function RecipeViewer() {
   const { id } = useParams();
@@ -20,6 +21,9 @@ export default function RecipeViewer() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   const ingredients = useLiveQuery(() => db.ingredientMaster.toArray(), []);
+  
+  // 获取配置标签映射
+  const { flavorTagMap, glassTypeMap, drinkDurationMap } = useAllConfigLabelMaps();
 
   // 处理返回按钮 - 返回上一页
   const handleGoBack = () => {
@@ -236,7 +240,7 @@ export default function RecipeViewer() {
                 <div className="flex flex-wrap gap-2">
                   {menuInfo.flavorTags.map((tag) => (
                     <Badge key={tag} variant="secondary">
-                      {getFlavorTagLabel(tag)}
+                      {getConfigLabelFromMap(flavorTagMap, tag)}
                     </Badge>
                   ))}
                 </div>
@@ -247,7 +251,7 @@ export default function RecipeViewer() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
               <div>
                 <div className="text-sm font-medium text-muted-foreground">杯型</div>
-                <div className="text-base mt-1">{getGlassTypeLabel(recipe.glassType)}</div>
+                <div className="text-base mt-1">{getConfigLabelFromMap(glassTypeMap, recipe.glassType)}</div>
               </div>
               <div>
                 <div className="text-sm font-medium text-muted-foreground">容量</div>
@@ -260,7 +264,7 @@ export default function RecipeViewer() {
               <div>
                 <div className="text-sm font-medium text-muted-foreground">饮用类型</div>
                 <div className="text-base mt-1">
-                  {menuInfo?.drinkDuration ? getDrinkDurationLabel(menuInfo.drinkDuration) : '-'}
+                  {menuInfo?.drinkDuration ? getConfigLabelFromMap(drinkDurationMap, menuInfo.drinkDuration) : '-'}
                 </div>
               </div>
               {menuInfo?.color && (

@@ -13,6 +13,7 @@ import { db } from '@/db/database';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNotificationSettings } from '@/hooks/useNotificationSettings';
 import { SystemConfigManager } from '@/components/SystemConfigManager';
+import { getAppVersion, getDbVersion } from '@/config/version';
 import {
   Select,
   SelectContent,
@@ -78,8 +79,8 @@ export default function Settings() {
     }
   };
 
-  const handleUpgradeDatabase = async () => {
-    if (!confirm('确定要升级数据库吗？\n\n此操作将：\n1. 关闭当前数据库连接\n2. 删除旧数据库\n3. 创建新版本数据库（包含场所管理功能）\n4. 刷新页面\n\n请确保您已经导出备份数据！')) {
+  const handleClearDatabase = async () => {
+    if (!confirm('确定要清空数据库吗？\n\n此操作将：\n1. 删除所有数据（配方、原料、场所等）\n2. 保留系统配置\n3. 刷新页面\n\n⚠️ 请确保您已经导出备份数据！')) {
       return;
     }
 
@@ -87,31 +88,42 @@ export default function Settings() {
       setIsUpgrading(true);
       setMessage(null);
 
-      // 关闭数据库连接
-      db.close();
-
-      // 删除旧数据库
-      await new Promise<void>((resolve, reject) => {
-        const deleteRequest = indexedDB.deleteDatabase('CocktailMenuDB');
-        deleteRequest.onsuccess = () => resolve();
-        deleteRequest.onerror = () => reject(deleteRequest.error);
-        deleteRequest.onblocked = () => {
-          console.warn('Database deletion blocked');
-          reject(new Error('数据库删除被阻止，请关闭所有其他标签页'));
-        };
+      // 清空所有表（保留 systemConfigs）
+      await db.transaction('rw', [
+        db.ingredientMaster,
+        db.recipes,
+        db.menuInfo,
+        db.tags,
+        db.inventoryLogs,
+        db.makingNotes,
+        db.settings,
+        db.venues,
+        db.venueRecipes,
+        db.venueIngredients,
+      ], async () => {
+        await db.ingredientMaster.clear();
+        await db.recipes.clear();
+        await db.menuInfo.clear();
+        await db.tags.clear();
+        await db.inventoryLogs.clear();
+        await db.makingNotes.clear();
+        await db.settings.clear();
+        await db.venues.clear();
+        await db.venueRecipes.clear();
+        await db.venueIngredients.clear();
       });
 
-      setMessage({ type: 'success', text: '数据库升级成功！页面将刷新...' });
+      setMessage({ type: 'success', text: '数据库已清空！页面将刷新...' });
 
-      // 刷新页面，自动创建新版本数据库
+      // 刷新页面
       setTimeout(() => {
         window.location.reload();
       }, 1500);
     } catch (error) {
-      console.error('Database upgrade failed:', error);
+      console.error('Clear database failed:', error);
       setMessage({ 
         type: 'error', 
-        text: error instanceof Error ? error.message : '数据库升级失败，请重试。' 
+        text: error instanceof Error ? error.message : '清空数据库失败，请重试。' 
       });
       setIsUpgrading(false);
     }
@@ -140,10 +152,7 @@ export default function Settings() {
         </Alert>
       )}
 
-      {/* 系统配置管理 - 全宽显示 */}
-      <SystemConfigManager />
-
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6">
         {/* 外观设置 */}
         <Card>
           <CardHeader>
@@ -186,65 +195,44 @@ export default function Settings() {
               备份、导入和导出数据
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-3">
-              <div>
-                <p className="text-sm font-medium mb-2">数据备份</p>
-                <p className="text-sm text-muted-foreground mb-3">
-                  导出所有配方、原料和标签数据为 JSON 文件
-                </p>
-                <Button 
-                  onClick={handleExport} 
-                  disabled={isExporting}
-                  className="w-full"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  {isExporting ? '导出中...' : '导出数据'}
-                </Button>
-              </div>
+          <CardContent>
+            <div className="flex gap-3">
+              <Button 
+                onClick={handleImportClick}
+                disabled={isImporting}
+                variant="outline"
+                className="flex-1"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                {isImporting ? '导入中...' : '导入数据'}
+              </Button>
 
-              <div className="pt-3 border-t">
-                <p className="text-sm font-medium mb-2">数据恢复</p>
-                <p className="text-sm text-muted-foreground mb-3">
-                  从备份文件导入数据（会合并到现有数据）
-                </p>
-                <Button 
-                  onClick={handleImportClick}
-                  disabled={isImporting}
-                  variant="outline"
-                  className="w-full"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  {isImporting ? '导入中...' : '导入数据'}
-                </Button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".json"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-              </div>
+              <Button 
+                onClick={handleExport} 
+                disabled={isExporting}
+                className="flex-1"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                {isExporting ? '导出中...' : '导出数据'}
+              </Button>
 
-              <div className="pt-3 border-t">
-                <p className="text-sm font-medium mb-2">数据库升级</p>
-                <p className="text-sm text-muted-foreground mb-3">
-                  升级到最新数据库版本（支持场所管理功能）
-                </p>
-                <Button 
-                  onClick={handleUpgradeDatabase}
-                  disabled={isUpgrading}
-                  variant="destructive"
-                  className="w-full"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  {isUpgrading ? '升级中...' : '升级数据库'}
-                </Button>
-                <p className="text-xs text-muted-foreground mt-2">
-                  ⚠️ 升级前请先导出数据备份
-                </p>
-              </div>
+              <Button 
+                onClick={handleClearDatabase}
+                disabled={isUpgrading}
+                variant="destructive"
+                className="flex-1"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                {isUpgrading ? '清空中...' : '清空数据库'}
+              </Button>
             </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              onChange={handleFileChange}
+              className="hidden"
+            />
           </CardContent>
         </Card>
 
@@ -342,14 +330,17 @@ export default function Settings() {
             <div className="space-y-2">
               <p className="text-sm font-medium">鸡尾酒配方管理系统</p>
               <p className="text-sm text-muted-foreground">
-                版本 2.0.0
+                版本 {getAppVersion()}
               </p>
               <p className="text-sm text-muted-foreground mt-2">
-                数据库版本：2
+                数据库版本：{getDbVersion()}
               </p>
             </div>
           </CardContent>
         </Card>
+
+        {/* 系统配置管理 - 放在最下面 */}
+        <SystemConfigManager />
       </div>
     </div>
   );
