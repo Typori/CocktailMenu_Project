@@ -71,6 +71,16 @@ export interface RecipeStep {
 }
 
 // 配方接口
+// 图片存储接口
+export interface ImageRecord {
+  id?: number;
+  data: Blob; // 图片的 Blob 数据
+  mimeType: string; // 图片的 MIME 类型，例如 "image/png", "image/jpeg"
+  filename?: string; // 原始文件名
+  createdAt?: Date;
+}
+
+// 配方接口
 export interface Recipe {
   id?: number;
   name: string;
@@ -82,7 +92,7 @@ export interface Recipe {
   technique?: Technique;
   glassType?: GlassType;
   garnish?: string; // 装饰物
-  images?: string[]; // 预览图（base64或URL）
+  imageIds?: number[]; // 预览图的ID数组，关联到ImageStore
   totalVolume?: number; // 总容量 (ml)
   calculatedAbv?: number; // 计算的酒精度
   calculatedCost?: number; // 计算的成本

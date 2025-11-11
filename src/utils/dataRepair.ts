@@ -1,7 +1,8 @@
 import { db } from '@/db/database';
+import { ImageRecord } from '@/types';
 
 /**
- * 计算两个字符串的相似度（使用简化的编辑距离算法）
+ * 计算两个字符串的相似度(使用简化的编辑距离算法)
  */
 function calculateSimilarity(str1: string, str2: string): number {
   const s1 = str1.toLowerCase().trim();
@@ -40,6 +41,103 @@ function calculateSimilarity(str1: string, str2: string): number {
   const maxLen = Math.max(len1, len2);
   return 1 - distance / maxLen;
 }
+
+/**
+ * 迁移旧配方中的Base64图片到imageStore
+ * 
+ * 这个问题背景：
+ * 1. 数据库升级V8之前，配方图片以Base64字符串形式直接存储在recipes表中。
+ * 2. 升级V8时，会尝试将这些图片迁移到imageStore，但如果用户在V8之前导入了旧数据，
+ *    或者升级过程中出现问题，可能导致部分图片未迁移。
+ * 3. 此函数用于手动触发，扫描recipes表中仍存在的Base64图片，并将其迁移。
+ */
+export async function migrateOldRecipeImagesToImageStore(): Promise<{
+  success: boolean;
+  migratedImages: number;
+  errors: string[];
+}> {
+  const errors: string[] = [];
+  let migratedImages = 0;
+
+  try {
+    console.log('🔧 开始迁移旧配方中的Base64图片到imageStore...');
+
+    // 获取所有配方，然后过滤出包含旧图片的配方
+    const allRecipes = await db.recipes.toArray();
+    const recipesWithOldImages = allRecipes.filter(r => r.images && r.images.length > 0);
+
+    console.log(`📋 找到 ${recipesWithOldImages.length} 个可能包含旧图片的配方`);
+
+    for (const recipe of recipesWithOldImages) {
+      if (recipe.images && recipe.images.length > 0) {
+        const newImageIds: number[] = recipe.imageIds || [];
+        
+        for (const base64Image of recipe.images) {
+          try {
+            // 提取 MIME 类型
+            const mimeMatch = base64Image.match(/^data:(image\/[a-zA-Z0-9-.+]+);base64,/);
+            let mimeType = 'application/octet-stream'; // 默认MIME类型
+            if (mimeMatch && mimeMatch[1]) {
+              mimeType = mimeMatch[1];
+            }
+
+            // 将 Base64 字符串转换为 Blob
+            const byteString = atob(base64Image.split(',')[1]);
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+              ia[i] = byteString.charCodeAt(i);
+            }
+            const blob = new Blob([ab], { type: mimeType });
+
+            // 直接存储 Blob 到 imageStore 表（不检查重复，因为这是修复旧数据）
+            const imageId = await db.imageStore.add({
+              data: blob,
+              mimeType: mimeType,
+              createdAt: new Date(),
+            } as ImageRecord);
+            
+            newImageIds.push(imageId);
+            migratedImages++;
+            console.log(`   ✅ 已迁移配方 "${recipe.name}" 的图片，新ID: ${imageId}`);
+          } catch (error) {
+            console.error(`迁移配方 ${recipe.name} 的图片失败:`, error);
+            errors.push(`配方 "${recipe.name}" 的图片迁移失败: ${String(error)}`);
+          }
+        }
+        
+        // 更新 recipes 表，移除旧的 images 字段，添加新的 imageIds 字段
+        await db.recipes.update(recipe.id!, {
+          images: undefined, // 移除旧字段
+          imageIds: newImageIds,
+          updatedAt: new Date(),
+        });
+        console.log(`✅ 已更新配方 ${recipe.name} 的图片ID引用`);
+      }
+    }
+
+    console.log(`\n✅ 旧图片迁移完成！`);
+    console.log(`   - 迁移的图片数: ${migratedImages}`);
+    console.log(`   - 错误数: ${errors.length}`);
+
+    return {
+      success: true,
+      migratedImages,
+      errors,
+    };
+  } catch (error) {
+    console.error('❌ 旧图片迁移过程中出错:', error);
+    return {
+      success: false,
+      migratedImages,
+      errors: [...errors, String(error)],
+    };
+  }
+}
+
+/**
+ * 修复配方中的原料ID引用
+ * 
 
 /**
  * 查找最匹配的原料
@@ -302,18 +400,25 @@ export async function runFullDataRepair(): Promise<void> {
   // 2. 修复配方中的原料ID
   const repairResult = await repairRecipeIngredientIds();
 
-  // 3. 输出总结
+  // 3. 迁移旧图片
+  const imageMigrationResult = await migrateOldRecipeImagesToImageStore();
+
+  // 4. 输出总结
   console.log('\n' + '='.repeat(50));
   console.log('📊 数据修复总结');
   console.log('='.repeat(50));
   console.log(`清理重复原料: ${dedupeResult.removedCount} 个`);
   console.log(`修复配方数量: ${repairResult.repairedRecipes} 个`);
-  console.log(`错误数量: ${repairResult.errors.length} 个`);
+  console.log(`迁移旧图片数量: ${imageMigrationResult.migratedImages} 个`);
+  console.log(`错误数量: ${repairResult.errors.length + imageMigrationResult.errors.length} 个`);
   
-  if (repairResult.errors.length > 0) {
+  if (repairResult.errors.length > 0 || imageMigrationResult.errors.length > 0) {
     console.log('\n⚠️  错误详情:');
     repairResult.errors.forEach((err, i) => {
       console.log(`  ${i + 1}. ${err}`);
+    });
+    imageMigrationResult.errors.forEach((err, i) => {
+      console.log(`  ${repairResult.errors.length + i + 1}. ${err}`);
     });
   }
   

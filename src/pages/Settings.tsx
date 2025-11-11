@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Settings as SettingsIcon, Palette, Database, Bell, Download, Upload, AlertCircle, CheckCircle2, RefreshCw, Wrench } from 'lucide-react';
-import { exportToJson, importFromJson } from '@/utils/export';
+import { exportToJson, importFromJson, exportImageGallery, exportToJsonWithoutImages } from '@/utils/export';
+import { runFullDataRepair } from '@/utils/dataRepair';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { db } from '@/db/database';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -29,6 +30,9 @@ export default function Settings() {
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
+  const [isExportingImages, setIsExportingImages] = useState(false); // 新增图片导出状态
+  const [isExportingWithoutImages, setIsExportingWithoutImages] = useState(false); // 新增不含图片导出状态
+  const [isRepairing, setIsRepairing] = useState(false); // 新增数据修复状态
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -46,6 +50,52 @@ export default function Settings() {
       setMessage({ type: 'error', text: '导出失败，请重试。' });
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  // 新增图片导出处理函数
+  const handleExportImages = async () => {
+    try {
+      setIsExportingImages(true);
+      setMessage(null);
+      await exportImageGallery();
+      setMessage({ type: 'success', text: '图片导出成功！图片已下载到您的下载文件夹。' });
+    } catch (error) {
+      console.error('Export images failed:', error);
+      setMessage({ type: 'error', text: '图片导出失败，请重试。' });
+    } finally {
+      setIsExportingImages(false);
+    }
+  };
+
+  const handleExportWithoutImages = async () => {
+    try {
+      setIsExportingWithoutImages(true);
+      setMessage(null);
+      await exportToJsonWithoutImages();
+      setMessage({ type: 'success', text: '数据导出成功（不含图片）！文件已下载到您的下载文件夹。' });
+    } catch (error) {
+      console.error('Export without images failed:', error);
+      setMessage({ type: 'error', text: '导出失败（不含图片），请重试。' });
+    } finally {
+      setIsExportingWithoutImages(false);
+    }
+  };
+
+  const handleRepairData = async () => {
+    if (!confirm('确定要运行数据修复工具吗？\n\n此操作将：\n1. 清理重复原料\n2. 修复配方中的原料ID引用\n3. 迁移旧的Base64图片到图片库\n\n建议在遇到数据异常时运行此工具。\n')) {
+      return;
+    }
+    try {
+      setIsRepairing(true);
+      setMessage(null);
+      await runFullDataRepair();
+      setMessage({ type: 'success', text: '数据修复完成！请检查控制台输出获取详细信息。' });
+    } catch (error) {
+      console.error('Data repair failed:', error);
+      setMessage({ type: 'error', text: '数据修复失败，请检查控制台。' });
+    } finally {
+      setIsRepairing(false);
     }
   };
 
@@ -217,6 +267,28 @@ export default function Settings() {
               </Button>
 
               <Button 
+                onClick={handleExportWithoutImages} 
+                disabled={isExportingWithoutImages}
+                variant="outline"
+                className="flex-1"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                {isExportingWithoutImages ? '导出中...' : '导出数据（不含图片）'}
+              </Button>
+
+              <Button 
+                onClick={handleExportImages} 
+                disabled={isExportingImages}
+                variant="outline"
+                className="flex-1"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                {isExportingImages ? '导出图片中...' : '导出图片库'}
+              </Button>
+            </div>
+            
+            <div className="flex gap-3 mt-4">
+              <Button 
                 onClick={handleClearDatabase}
                 disabled={isUpgrading}
                 variant="destructive"
@@ -225,19 +297,20 @@ export default function Settings() {
                 <RefreshCw className="h-4 w-4 mr-2" />
                 {isUpgrading ? '清空中...' : '清空数据库'}
               </Button>
+              <Button 
+                onClick={handleRepairData}
+                disabled={isRepairing}
+                variant="outline"
+                className="flex-1"
+              >
+                <Wrench className="h-4 w-4 mr-2" />
+                {isRepairing ? '修复中...' : '运行数据修复'}
+              </Button>
             </div>
             
-            <div className="pt-4 border-t">
-              <Link to="/data-repair">
-                <Button variant="outline" className="w-full">
-                  <Wrench className="h-4 w-4 mr-2" />
-                  数据修复工具
-                </Button>
-              </Link>
-              <p className="text-sm text-muted-foreground mt-2">
-                如果导入数据后出现原料ID不匹配问题，可以使用数据修复工具
-              </p>
-            </div>
+            <p className="text-sm text-muted-foreground mt-2 pt-4 border-t">
+              如果导入数据后出现原料ID不匹配问题，或者图片显示异常，可以尝试运行数据修复工具。
+            </p>
             
             <input
               ref={fileInputRef}

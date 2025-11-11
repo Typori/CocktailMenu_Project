@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Recipe, MenuInfo, Ingredient, VenueRecipe, Venue } from '@/types';
+import { db } from '@/db/database';
 import { formatCurrency, getFlavorTagLabel, getDrinkDurationLabel, getGlassTypeLabel } from './calculations';
 import { getPDFConfig } from './pdfConfig';
 
@@ -90,13 +91,26 @@ async function createRecipeHTML(
     : '';
 
   // 添加图片部分
-  const imageSection = recipe.images && recipe.images.length > 0
-    ? `<div style="text-align: center; margin: 20px 0;">
-         <img src="${recipe.images[0]}" alt="${recipe.name}" 
-              style="max-width: 400px; max-height: 400px; border-radius: 8px; object-fit: cover;" 
-              crossorigin="anonymous" />
-       </div>`
-    : '';
+  let imageSection = '';
+  if (recipe.imageIds && recipe.imageIds.length > 0) {
+    try {
+      const firstImageRecord = await db.imageStore.get(recipe.imageIds[0]);
+      if (firstImageRecord && firstImageRecord.data) {
+        const reader = new FileReader();
+        const base64Image: string = await new Promise((resolve, reject) => {
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(firstImageRecord.data);
+        });
+        imageSection = `<div style="text-align: center; margin: 20px 0;">
+                          <img src="${base64Image}" alt="${recipe.name}" 
+                               style="max-width: 400px; max-height: 400px; border-radius: 8px; object-fit: cover;" />
+                        </div>`;
+      }
+    } catch (error) {
+      console.error('Failed to load image for PDF export:', error);
+    }
+  }
 
   // 页眉
   const header = showHeader && headerTitle
@@ -350,7 +364,8 @@ async function htmlToPdfPage(
 export async function exportRecipeToPDF(
   recipe: Recipe,
   menuInfo: MenuInfo | null,
-  ingredients: (Ingredient | Ingredient)[]
+  ingredients: Ingredient[],
+  config: { includeImages?: boolean } = { includeImages: true }
 ) {
   try {
     const pdf = new jsPDF({
@@ -389,7 +404,8 @@ export async function exportRecipeToPDF(
 export async function exportVenueMenuToPDF(
   venue: Venue,
   venueRecipes: Array<VenueRecipe & { recipe: any }>,
-  ingredients: (Ingredient | Ingredient)[]
+  ingredients: Ingredient[],
+  config: { includeImages?: boolean } = { includeImages: true }
 ) {
   try {
     const availableRecipes = venueRecipes.filter(vr => vr.isAvailable);
@@ -424,7 +440,8 @@ export async function exportVenueMenuToPDF(
         true, // showHeader
         venue.name || '酒单',
         currentPage,
-        totalPages
+        totalPages,
+        config.includeImages // 传递 includeImages 参数
       );
       
       await htmlToPdfPage(pdf, html, isFirstPage);

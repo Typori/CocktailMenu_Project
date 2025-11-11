@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { ExportConfig } from '@/types';
+import JSZip from 'jszip';
+import { ExportConfig, ImageRecord } from '@/types';
 import { db } from '@/db/database';
 import { getAppVersion } from '@/config/version';
 import { runFullDataRepair } from './dataRepair';
@@ -92,9 +93,178 @@ export async function exportToJson(): Promise<void> {
     data.systemConfigs = [];
   }
 
+  try {
+    const imageRecords = await db.imageStore.toArray();
+    data.imageStore = await Promise.all(imageRecords.map(async (record) => {
+      const base64 = await blobToBase64(record.data);
+      return {
+        id: record.id,
+        data: base64,
+        mimeType: record.mimeType,
+        filename: record.filename,
+        createdAt: record.createdAt,
+      };
+    }));
+    console.log(`导出 ${data.imageStore.length} 张图片`);
+  } catch (e) {
+    console.warn('ImageStore table not found or failed to export images:', e);
+    data.imageStore = [];
+  }
+
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   downloadBlob(blob, `cocktail-menu-backup-${formatDate(new Date())}.json`);
   console.log('数据导出完成！');
+}
+
+// 导出为JSON（不包含图片）
+export async function exportToJsonWithoutImages(): Promise<void> {
+  const data: any = {
+    exportDate: new Date().toISOString(),
+    version: getAppVersion(),
+  };
+
+  // 导出原料数据
+  try {
+    data.ingredients = await db.ingredients.toArray();
+    console.log(`导出 ${data.ingredients.length} 个原料数据`);
+  } catch (e) {
+    console.warn('Failed to export ingredients:', e);
+  }
+
+  try {
+    data.recipes = await db.recipes.toArray();
+    console.log(`导出 ${data.recipes.length} 个配方`);
+  } catch (e) {
+    console.warn('Failed to export recipes:', e);
+  }
+
+  try {
+    data.menuInfo = await db.menuInfo.toArray();
+    console.log(`导出 ${data.menuInfo.length} 个菜单信息`);
+  } catch (e) {
+    console.warn('Failed to export menuInfo:', e);
+  }
+
+  try {
+    data.tags = await db.tags.toArray();
+    console.log(`导出 ${data.tags.length} 个标签`);
+  } catch (e) {
+    console.warn('Failed to export tags:', e);
+  }
+
+  try {
+    data.inventoryLogs = await db.inventoryLogs.toArray();
+  } catch (e) {
+    console.warn('Failed to export inventoryLogs:', e);
+  }
+
+  try {
+    data.makingNotes = await db.makingNotes.toArray();
+  } catch (e) {
+    console.warn('Failed to export makingNotes:', e);
+  }
+
+  try {
+    data.settings = await db.settings.toArray();
+  } catch (e) {
+    console.warn('Failed to export settings:', e);
+  }
+
+  // 新表
+  try {
+    data.venues = await db.venues.toArray();
+    console.log(`导出 ${data.venues.length} 个场所`);
+  } catch (e) {
+    console.warn('Venues table not found (old database version)');
+    data.venues = [];
+  }
+
+  try {
+    data.venueRecipes = await db.venueRecipes.toArray();
+    console.log(`导出 ${data.venueRecipes.length} 个场所配方`);
+  } catch (e) {
+    console.warn('VenueRecipes table not found (old database version)');
+    data.venueRecipes = [];
+  }
+
+  try {
+    data.venueIngredients = await db.venueIngredients.toArray();
+    console.log(`导出 ${data.venueIngredients.length} 个场所原料`);
+  } catch (e) {
+    console.warn('VenueIngredients table not found');
+    data.venueIngredients = [];
+  }
+
+  try {
+    data.systemConfigs = await db.systemConfigs.toArray();
+    console.log(`导出 ${data.systemConfigs.length} 个系统配置`);
+  } catch (e) {
+    console.warn('SystemConfigs table not found');
+    data.systemConfigs = [];
+  }
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  downloadBlob(blob, `cocktail-menu-backup-no-images-${formatDate(new Date())}.json`);
+  console.log('数据导出完成（不含图片）！');
+}
+
+// 辅助函数：Blob 转 Base64
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      resolve(reader.result as string);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+// 导出图片库为ZIP文件
+export async function exportImageGallery(): Promise<void> {
+  const imageRecords = await db.imageStore.toArray();
+  if (imageRecords.length === 0) {
+    console.log('没有图片可导出。');
+    alert('没有图片可导出');
+    return;
+  }
+
+  console.log(`开始导出 ${imageRecords.length} 张图片...`);
+  
+  try {
+    // 创建 ZIP 文件
+    const zip = new JSZip();
+    const imagesFolder = zip.folder('images');
+    
+    if (!imagesFolder) {
+      throw new Error('创建文件夹失败');
+    }
+    
+    // 添加所有图片到 ZIP
+    for (const record of imageRecords) {
+      const filename = record.filename || `image-${record.id}.${record.mimeType.split('/')[1] || 'jpg'}`;
+      imagesFolder.file(filename, record.data);
+      console.log(`已添加: ${filename}`);
+    }
+    
+    // 生成 ZIP 文件
+    console.log('正在生成 ZIP 文件...');
+    const zipBlob = await zip.generateAsync({ 
+      type: 'blob',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 }
+    });
+    
+    // 下载 ZIP 文件
+    const zipFilename = `cocktail-images-${formatDate(new Date())}.zip`;
+    downloadBlob(zipBlob, zipFilename);
+    
+    console.log(`✅ 图片导出完成！已导出 ${imageRecords.length} 张图片到 ${zipFilename}`);
+    alert(`成功导出 ${imageRecords.length} 张图片！`);
+  } catch (error) {
+    console.error('导出图片失败:', error);
+    alert(`导出失败: ${error}`);
+  }
 }
 
 // 从JSON导入
@@ -105,7 +275,30 @@ export async function importFromJson(file: File): Promise<void> {
       try {
         const data = JSON.parse(e.target?.result as string);
         
-        // 导入数据（使用 bulkPut 会合并/更新现有数据）
+        // 导入图片数据
+        if (data.imageStore && data.imageStore.length > 0) {
+          console.log(`正在导入 ${data.imageStore.length} 张图片...`);
+          const formattedImages = await Promise.all(data.imageStore.map(async (img: any) => {
+            // 将 Base64 字符串转换回 Blob
+            const byteString = atob(img.data.split(',')[1]);
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+              ia[i] = byteString.charCodeAt(i);
+            }
+            const blob = new Blob([ab], { type: img.mimeType });
+
+            return {
+              id: img.id,
+              data: blob,
+              mimeType: img.mimeType,
+              filename: img.filename,
+              createdAt: img.createdAt ? new Date(img.createdAt) : new Date(),
+            } as ImageRecord;
+          }));
+          await db.imageStore.bulkPut(formattedImages);
+          console.log(`✅ 已导入 ${formattedImages.length} 张图片`);
+        }
         
         // 导入原料数据（兼容旧版本的 ingredientMaster 字段名）
         const ingredientsData = data.ingredients || data.ingredientMaster;

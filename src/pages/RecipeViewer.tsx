@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/database';
-import { Recipe, MenuInfo } from '@/types';
+import { Recipe, MenuInfo, ImageRecord } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +19,7 @@ export default function RecipeViewer() {
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [menuInfo, setMenuInfo] = useState<MenuInfo | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [imageUrls, setImageUrls] = useState<string[]>([]); // 新增：用于存储图片预览URL
 
   const ingredients = useLiveQuery(() => db.ingredients.toArray(), []);
   
@@ -37,13 +38,29 @@ export default function RecipeViewer() {
   useEffect(() => {
     if (id) {
       db.recipes.get(Number(id)).then((r) => {
-        if (r) setRecipe(r);
+        if (r) {
+          setRecipe(r);
+          // 获取图片URL
+          if (r.imageIds && r.imageIds.length > 0) {
+            db.imageStore.bulkGet(r.imageIds).then(images => {
+              const urls = images.filter(img => img && img.data).map(img => URL.createObjectURL(img!.data));
+              setImageUrls(urls);
+            });
+          } else {
+            setImageUrls([]);
+          }
+        }
       });
       db.menuInfo.where('recipeId').equals(Number(id)).first().then((m) => {
         if (m) setMenuInfo(m);
       });
     }
-  }, [id]);
+
+    // 清理函数：在组件卸载或 id 变化时撤销 URL
+    return () => {
+      imageUrls.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [id]); // 依赖于 id 和 imageUrls（用于清理）
 
   const handleToggleFavorite = async () => {
     if (!recipe) return;
@@ -71,7 +88,7 @@ export default function RecipeViewer() {
   const handleExportPDF = async () => {
     if (!recipe || !ingredients) return;
     try {
-      await exportRecipeToPDF(recipe, menuInfo, ingredients);
+      await exportRecipeToPDF(recipe, menuInfo, ingredients, { includeImages: true });
     } catch (error) {
       console.error('Failed to export PDF:', error);
       alert('导出PDF失败，请重试');
@@ -79,14 +96,14 @@ export default function RecipeViewer() {
   };
 
   const nextImage = () => {
-    if (recipe?.images && recipe.images.length > 0) {
-      setCurrentImageIndex((prev) => (prev + 1) % recipe.images!.length);
+    if (imageUrls && imageUrls.length > 0) {
+      setCurrentImageIndex((prev) => (prev + 1) % imageUrls.length);
     }
   };
 
   const prevImage = () => {
-    if (recipe?.images && recipe.images.length > 0) {
-      setCurrentImageIndex((prev) => (prev - 1 + recipe.images!.length) % recipe.images!.length);
+    if (imageUrls && imageUrls.length > 0) {
+      setCurrentImageIndex((prev) => (prev - 1 + imageUrls.length) % imageUrls.length);
     }
   };
 
@@ -165,17 +182,17 @@ export default function RecipeViewer() {
           </div>
         </div>
         {/* 图片轮播 */}
-        {recipe.images && recipe.images.length > 0 && (
+        {imageUrls && imageUrls.length > 0 && (
           <Card>
             <CardContent className="p-0">
               <div className="relative aspect-[16/9] max-h-[500px] rounded-lg overflow-hidden bg-muted">
                 <ImagePreviewDialog
-                  src={recipe.images[currentImageIndex]}
+                  src={imageUrls[currentImageIndex]}
                   alt={`${recipe.name} - 图片 ${currentImageIndex + 1}`}
                   trigger={
                     <div className="cursor-pointer group h-full">
                       <img
-                        src={recipe.images[currentImageIndex]}
+                        src={imageUrls[currentImageIndex]}
                         alt={`${recipe.name} - 图片 ${currentImageIndex + 1}`}
                         className="w-full h-full object-cover transition-transform group-hover:scale-105"
                       />
@@ -187,7 +204,7 @@ export default function RecipeViewer() {
                 />
                 
                 {/* 轮播控制 */}
-                {recipe.images.length > 1 && (
+                {imageUrls.length > 1 && (
                   <>
                     <Button
                       size="icon"
@@ -206,7 +223,7 @@ export default function RecipeViewer() {
                       <ChevronRight className="h-5 w-5" />
                     </Button>
                     <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-                      {recipe.images.map((_, index) => (
+                      {imageUrls.map((_, index) => (
                         <button
                           key={index}
                           onClick={() => setCurrentImageIndex(index)}

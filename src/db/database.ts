@@ -11,6 +11,7 @@ import {
   VenueRecipe,
   VenueIngredient,
   SystemConfig,
+  ImageRecord,
 } from '@/types';
 
 export class CocktailDatabase extends Dexie {
@@ -25,6 +26,7 @@ export class CocktailDatabase extends Dexie {
   venueRecipes!: Table<VenueRecipe, number>;
   venueIngredients!: Table<VenueIngredient, number>;
   systemConfigs!: Table<SystemConfig, number>;
+  imageStore!: Table<ImageRecord, number>; // 新增图片存储表
 
   constructor() {
     super('CocktailMenuDB');
@@ -365,6 +367,72 @@ export class CocktailDatabase extends Dexie {
       await tx.table('systemConfigs').bulkAdd(defaultConfigs);
       
       console.log(`数据库升级到Version 7完成！已初始化 ${defaultConfigs.length} 个系统配置`);
+    });
+
+    // 版本8：图片存储分离
+    this.version(8).stores({
+      oldIngredients: null, // 确保旧表已删除
+      recipes: '++id, name, parentRecipeId, isFavorite, createdAt, displayOrder, *tags, glassType, *imageIds', // 更新recipes表索引
+      menuInfo: '++id, recipeId, isAvailable, displayOrder, *flavorTags, drinkDuration',
+      tags: '++id, name',
+      inventoryLogs: '++id, ingredientId, timestamp',
+      makingNotes: '++id, recipeId, timestamp',
+      settings: '++id',
+      venues: '++id, name, createdAt',
+      venueRecipes: '++id, venueId, recipeId, displayOrder, isAvailable',
+      ingredients: '++id, name, category, displayOrder, createdAt, price, quantity',
+      venueIngredients: '++id, venueId, ingredientId, displayOrder, [venueId+ingredientId]',
+      systemConfigs: '++id, [configType+value], [configType+isActive], configType, isActive, displayOrder',
+      imageStore: '++id, mimeType', // 新增图片存储表
+    }).upgrade(async tx => {
+      console.log('开始数据库升级到Version 8 - 图片存储分离...');
+
+      // 迁移recipes表中的图片数据
+      const recipes = await tx.table('recipes').toArray();
+      console.log(`找到 ${recipes.length} 个配方，开始迁移图片...`);
+
+      for (const recipe of recipes) {
+        if (recipe.images && recipe.images.length > 0) {
+          const newImageIds: number[] = [];
+          for (const base64Image of recipe.images) {
+            try {
+              // 提取 MIME 类型
+              const mimeMatch = base64Image.match(/^data:(image\/[a-zA-Z0-9-.+]+);base64,/);
+              let mimeType = 'application/octet-stream'; // 默认MIME类型
+              if (mimeMatch && mimeMatch[1]) {
+                mimeType = mimeMatch[1];
+              }
+
+              // 将 Base64 字符串转换为 Blob
+              const byteString = atob(base64Image.split(',')[1]);
+              const ab = new ArrayBuffer(byteString.length);
+              const ia = new Uint8Array(ab);
+              for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+              }
+              const blob = new Blob([ab], { type: mimeType });
+
+              // 存储 Blob 到 imageStore 表
+              const imageId = await tx.table('imageStore').add({
+                data: blob,
+                mimeType: mimeType,
+                createdAt: new Date(),
+              });
+              newImageIds.push(imageId);
+            } catch (error) {
+              console.error(`迁移配方 ${recipe.name} 的图片失败:`, error);
+            }
+          }
+          // 更新 recipes 表，移除旧的 images 字段，添加新的 imageIds 字段
+          await tx.table('recipes').update(recipe.id!, { 
+            images: undefined, // 移除旧字段
+            imageIds: newImageIds,
+            updatedAt: new Date(),
+          });
+          console.log(`配方 ${recipe.name} 的图片已迁移，新增 ${newImageIds.length} 张图片`);
+        }
+      }
+      console.log('数据库升级到Version 8完成！图片存储已分离。');
     });
   }
 }

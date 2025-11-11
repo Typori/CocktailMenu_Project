@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/database';
-import { Recipe, RecipeIngredient, MenuInfo, Unit, GlassType, FlavorTag, DrinkDuration } from '@/types';
+import { Recipe, RecipeIngredient, MenuInfo, Unit, GlassType, FlavorTag, DrinkDuration, ImageRecord } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -161,10 +161,10 @@ export default function RecipeEditor() {
     nameEn: '',
     ingredients: [],
     steps: [],
-    instructions: '',
     glassType: 'rocks',
     notes: '',
     tags: [],
+    imageIds: [], // 修改为 imageIds
   });
   const [menuInfo, setMenuInfo] = useState<Partial<MenuInfo>>({
     menuNames: [{ id: '1', name: '', isDefault: true }],
@@ -177,6 +177,7 @@ export default function RecipeEditor() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const initialDataRef = useRef<{ recipe: Partial<Recipe>; menuInfo: Partial<MenuInfo> } | null>(null);
+  const [imageUrls, setImageUrls] = useState<string[]>([]); // 新增：用于存储图片预览URL
 
   const ingredients = useLiveQuery(() => db.ingredients.toArray(), []);
 
@@ -223,6 +224,26 @@ export default function RecipeEditor() {
       initialDataRef.current = { recipe, menuInfo };
     }
   }, [id]);
+
+  // 新增：根据 imageIds 获取图片并生成 URL
+  useEffect(() => {
+    const fetchAndSetImageUrls = async () => {
+      if (recipe.imageIds && recipe.imageIds.length > 0) {
+        const images = await db.imageStore.bulkGet(recipe.imageIds);
+        const urls = images.filter(img => img && img.data).map(img => URL.createObjectURL(img!.data));
+        setImageUrls(urls);
+      } else {
+        setImageUrls([]);
+      }
+    };
+
+    fetchAndSetImageUrls();
+
+    // 清理函数：在组件卸载或 imageIds 变化时撤销 URL
+    return () => {
+      imageUrls.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [recipe.imageIds]); // 依赖于 recipe.imageIds
 
   // 检测是否有未保存的更改
   useEffect(() => {
@@ -408,6 +429,7 @@ export default function RecipeEditor() {
 
       const recipeData: Recipe = {
         ...recipe as Recipe,
+        imageIds: recipe.imageIds || [], // 确保 imageIds 字段存在
         updatedAt: new Date(),
         createdAt: recipe.createdAt || new Date(),
       };
@@ -636,17 +658,17 @@ export default function RecipeEditor() {
               <Label>成品图片</Label>
               <div className="space-y-3">
                 {/* 图片预览网格 */}
-                {recipe.images && recipe.images.length > 0 && (
+                {imageUrls && imageUrls.length > 0 && (
                   <div className="grid grid-cols-4 gap-3">
-                    {recipe.images.map((image, index) => (
+                    {imageUrls.map((url, index) => (
                       <ImagePreviewDialog
-                        key={index}
-                        src={image}
+                        key={url} // 使用 URL 作为 key
+                        src={url}
                         alt={`成品图 ${index + 1}`}
                         trigger={
                           <div className="relative group cursor-pointer aspect-square rounded-lg overflow-hidden border-2 border-border hover:border-primary transition-colors">
                             <img
-                              src={image}
+                              src={url}
                               alt={`成品图 ${index + 1}`}
                               className="w-full h-full object-cover"
                             />
@@ -657,11 +679,14 @@ export default function RecipeEditor() {
                               size="icon"
                               variant="destructive"
                               className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={(e) => {
+                              onClick={async (e) => {
                                 e.stopPropagation();
-                                const newImages = [...(recipe.images || [])];
-                                newImages.splice(index, 1);
-                                setRecipe({ ...recipe, images: newImages });
+                                const imageIdToRemove = recipe.imageIds?.[index];
+                                if (imageIdToRemove) {
+                                  await db.imageStore.delete(imageIdToRemove);
+                                  const newImageIds = (recipe.imageIds || []).filter((_, i) => i !== index);
+                                  setRecipe({ ...recipe, imageIds: newImageIds });
+                                }
                               }}
                             >
                               <X className="h-3 w-3" />
@@ -681,22 +706,27 @@ export default function RecipeEditor() {
                     accept="image/*"
                     multiple
                     className="hidden"
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const files = e.target.files;
                       if (files) {
-                        Array.from(files).forEach((file) => {
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            const base64String = reader.result as string;
-                            setRecipe({
-                              ...recipe,
-                              images: [...(recipe.images || []), base64String],
+                        for (const file of Array.from(files)) {
+                          try {
+                            const imageId = await db.imageStore.add({
+                              data: file, // 直接存储 File 对象，Dexie 会自动转换为 Blob
+                              mimeType: file.type,
+                              filename: file.name,
+                              createdAt: new Date(),
                             });
-                          };
-                          reader.readAsDataURL(file);
-                        });
+                            setRecipe(prev => ({
+                              ...prev,
+                              imageIds: [...(prev.imageIds || []), imageId],
+                            }));
+                          } catch (error) {
+                            console.error('Failed to upload image:', error);
+                          }
+                        }
                       }
-                      e.target.value = '';
+                      e.target.value = ''; // 清空文件输入，以便再次选择相同文件
                     }}
                   />
                   <Button
@@ -709,7 +739,7 @@ export default function RecipeEditor() {
                     上传图片
                   </Button>
                   <span className="text-sm text-muted-foreground">
-                    {recipe.images?.length || 0} 张图片
+                    {recipe.imageIds?.length || 0} 张图片
                   </span>
                 </div>
               </div>
