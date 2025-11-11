@@ -15,10 +15,10 @@ export async function checkDatabaseStatus() {
     console.log(`配方数量: ${recipes.length}`);
     console.log('配方示例:', recipes[0]);
     
-    // 检查原料
-    const ingredients = await db.ingredients.toArray();
-    console.log(`原料数量: ${ingredients.length}`);
-    console.log('原料示例:', ingredients[0]);
+    // 检查原料主数据
+    const ingredientMaster = await db.ingredients.toArray();
+    console.log(`原料主数据数量: ${ingredientMaster.length}`);
+    console.log('原料主数据示例:', ingredientMaster[0]);
     
     // 检查菜单信息
     const menuInfos = await db.menuInfo.toArray();
@@ -28,18 +28,23 @@ export async function checkDatabaseStatus() {
     const venues = await db.venues.toArray();
     console.log(`店面数量: ${venues.length}`);
     
+    // 检查店面原料
+    const venueIngredients = await db.venueIngredients.toArray();
+    console.log(`店面原料数量: ${venueIngredients.length}`);
+    
     // 检查displayOrder字段
     const recipesWithoutOrder = recipes.filter(r => r.displayOrder === undefined);
-    const ingredientsWithoutOrder = ingredients.filter(i => i.displayOrder === undefined);
+    const ingredientsWithoutOrder = ingredientMaster.filter(i => i.displayOrder === undefined);
     
     console.log(`缺少displayOrder的配方: ${recipesWithoutOrder.length}`);
     console.log(`缺少displayOrder的原料: ${ingredientsWithoutOrder.length}`);
     
     return {
       recipes: recipes.length,
-      ingredients: ingredients.length,
+      ingredientMaster: ingredientMaster.length,
       menuInfos: menuInfos.length,
       venues: venues.length,
+      venueIngredients: venueIngredients.length,
       recipesWithoutOrder: recipesWithoutOrder.length,
       ingredientsWithoutOrder: ingredientsWithoutOrder.length,
     };
@@ -65,10 +70,10 @@ export async function fixDisplayOrder() {
     }
     console.log(`修复了 ${fixedRecipes} 个配方的displayOrder`);
     
-    // 修复原料
-    const ingredients = await db.ingredients.toArray();
+    // 修复原料主数据
+    const ingredientMaster = await db.ingredients.toArray();
     let fixedIngredients = 0;
-    for (const ingredient of ingredients) {
+    for (const ingredient of ingredientMaster) {
       if (ingredient.displayOrder === undefined && ingredient.id) {
         await db.ingredients.update(ingredient.id, { displayOrder: ingredient.id });
         fixedIngredients++;
@@ -93,10 +98,12 @@ export async function exportAllData() {
   try {
     const data = {
       recipes: await db.recipes.toArray(),
-      ingredients: await db.ingredients.toArray(),
+      ingredientMaster: await db.ingredients.toArray(),
       menuInfo: await db.menuInfo.toArray(),
       venues: await db.venues.toArray(),
       venueRecipes: await db.venueRecipes.toArray(),
+      venueIngredients: await db.venueIngredients.toArray(),
+      systemConfigs: await db.systemConfigs.toArray(),
       tags: await db.tags.toArray(),
       settings: await db.settings.toArray(),
       exportDate: new Date().toISOString(),

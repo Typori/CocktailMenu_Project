@@ -6,7 +6,8 @@ import {
   Settings as SettingsIcon,
   Store,
   Moon,
-  Sun
+  Sun,
+  Bug
 } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
@@ -14,10 +15,11 @@ import { cn } from '@/lib/utils';
 
 const navigation = [
   { name: '仪表盘', href: '/dashboard', icon: Home },
-  { name: '原料库', href: '/ingredient-master', icon: Wine },
+  { name: '原料库', href: '/ingredients', icon: Wine },
   { name: '配方库', href: '/recipes', icon: BookOpen },
   { name: '店面管理', href: '/venues', icon: Store },
   { name: '设置', href: '/settings', icon: SettingsIcon },
+  { name: 'PDF调试', href: '/pdf-debug', icon: Bug },
 ];
 
 export default function Layout() {

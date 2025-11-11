@@ -6,8 +6,6 @@ import { db, initializeDefaultSettings, initializeSampleData } from '@/db/databa
 import Layout from '@/components/Layout';
 import Dashboard from '@/pages/Dashboard';
 import Ingredients from '@/pages/Ingredients';
-import Inventory from '@/pages/Inventory';
-import IngredientMaster from '@/pages/IngredientMaster';
 import Recipes from '@/pages/Recipes';
 import RecipeEditor from '@/pages/RecipeEditor';
 import RecipeViewer from '@/pages/RecipeViewer';
@@ -16,6 +14,8 @@ import SingleRecipeView from '@/pages/SingleRecipeView';
 import VenueManagement from '@/pages/VenueManagement';
 import Analytics from '@/pages/Analytics';
 import Settings from '@/pages/Settings';
+import PDFDebug from '@/pages/PDFDebug';
+import DataRepair from '@/pages/DataRepair';
 import '@/utils/dbDebug'; // 加载数据库调试工具
 import './App.css';
 
@@ -72,10 +72,7 @@ function App() {
             <Route path="/" element={<Layout />}>
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
-              <Route path="ingredient-master" element={<IngredientMaster />} />
-              {/* 备份页面 - 仅供开发和数据恢复使用 */}
               <Route path="ingredients" element={<Ingredients />} />
-              <Route path="inventory" element={<Inventory />} />
               <Route path="recipes" element={<Recipes />} />
               <Route path="recipes/new" element={<RecipeEditor />} />
               <Route path="recipes/:id" element={<RecipeViewer />} />
@@ -85,6 +82,8 @@ function App() {
               <Route path="venues" element={<VenueManagement />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="pdf-debug" element={<PDFDebug />} />
+              <Route path="data-repair" element={<DataRepair />} />
             </Route>
           </Routes>
         </Router>

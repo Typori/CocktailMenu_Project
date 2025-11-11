@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { db } from '@/db/database';
-import { VenueIngredient, IngredientMaster } from '@/types';
+import { VenueIngredient, Ingredient } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Search } from 'lucide-react';
 import { calculateUnitPrice } from '@/utils/calculations';
@@ -37,7 +37,7 @@ export default function AddVenueIngredientDialog({
   editingIngredient,
 }: AddVenueIngredientDialogProps) {
   const [formData, setFormData] = useState<Partial<VenueIngredient>>({
-    ingredientMasterId: undefined,
+    ingredientId: undefined,
     price: 0,
     quantity: 0,
     wastageRate: 5,
@@ -50,7 +50,7 @@ export default function AddVenueIngredientDialog({
   const [searchQuery, setSearchQuery] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const ingredientMasters = useLiveQuery(() => db.ingredientMaster.toArray(), []);
+  const ingredientMasters = useLiveQuery(() => db.ingredients.toArray(), []);
   const existingVenueIngredients = useLiveQuery(
     () => db.venueIngredients.where('venueId').equals(venueId).toArray(),
     [venueId]
@@ -62,7 +62,7 @@ export default function AddVenueIngredientDialog({
       setSelectedIngredients(new Set());
     } else {
       setFormData({
-        ingredientMasterId: undefined,
+        ingredientId: undefined,
         price: 0,
         quantity: 0,
         wastageRate: 5,
@@ -94,12 +94,12 @@ export default function AddVenueIngredientDialog({
       setIsSubmitting(true);
 
       try {
-        const selectedMaster = ingredientMasters?.find(m => m.id === formData.ingredientMasterId);
+        const selectedMaster = ingredientMasters?.find(m => m.id === formData.ingredientId);
         const unitPrice = calculateUnitPrice({
           price: formData.price,
           quantity: formData.quantity,
           wastageRate: formData.wastageRate,
-        } as IngredientMaster);
+        } as Ingredient);
 
         await db.venueIngredients.update(editingIngredient.id!, {
           ...formData,
@@ -137,7 +137,7 @@ export default function AddVenueIngredientDialog({
         for (const masterId of selectedIngredients) {
           // 检查是否已添加
           const existing = await db.venueIngredients
-            .where({ venueId, ingredientMasterId: masterId })
+            .where({ venueId, ingredientId: masterId })
             .first();
 
           if (existing) {
@@ -155,12 +155,12 @@ export default function AddVenueIngredientDialog({
             price: defaultPrice,
             quantity: defaultQuantity,
             wastageRate: master.wastageRate,
-          } as IngredientMaster);
+          } as Ingredient);
 
           // 使用默认值添加
           await db.venueIngredients.add({
             venueId,
-            ingredientMasterId: masterId,
+            ingredientId: masterId,
             ingredientName: master.name,
             price: defaultPrice,
             quantity: defaultQuantity,
@@ -206,7 +206,7 @@ export default function AddVenueIngredientDialog({
     
     // 排除已添加的原料
     const isExisting = existingVenueIngredients?.some(
-      vi => vi.ingredientMasterId === master.id
+      vi => vi.ingredientId === master.id
     );
     return !isExisting;
   }) || [];
@@ -248,7 +248,7 @@ export default function AddVenueIngredientDialog({
                 <div className="flex items-baseline gap-2">
                   <div className="font-medium text-lg">{formData.ingredientName}</div>
                   {(() => {
-                    const master = ingredientMasters?.find(m => m.id === formData.ingredientMasterId);
+                    const master = ingredientMasters?.find(m => m.id === formData.ingredientId);
                     return master?.nameEn ? (
                       <div className="text-sm text-muted-foreground font-normal">{master.nameEn}</div>
                     ) : null;
@@ -256,7 +256,7 @@ export default function AddVenueIngredientDialog({
                 </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-muted-foreground">
                   {(() => {
-                    const master = ingredientMasters?.find(m => m.id === formData.ingredientMasterId);
+                    const master = ingredientMasters?.find(m => m.id === formData.ingredientId);
                     return (
                       <>
                         <div>
@@ -294,7 +294,7 @@ export default function AddVenueIngredientDialog({
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="currentStock">当前库存 ({(() => {
-                    const master = ingredientMasters?.find(m => m.id === formData.ingredientMasterId);
+                    const master = ingredientMasters?.find(m => m.id === formData.ingredientId);
                     return master?.unit || 'ml';
                   })()})</Label>
                   <Input
@@ -311,7 +311,7 @@ export default function AddVenueIngredientDialog({
 
                 <div className="space-y-2">
                   <Label htmlFor="minStock">最低库存预警 ({(() => {
-                    const master = ingredientMasters?.find(m => m.id === formData.ingredientMasterId);
+                    const master = ingredientMasters?.find(m => m.id === formData.ingredientId);
                     return master?.unit || 'ml';
                   })()})</Label>
                   <Input

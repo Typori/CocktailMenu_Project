@@ -20,7 +20,7 @@ export default function RecipeViewer() {
   const [menuInfo, setMenuInfo] = useState<MenuInfo | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-  const ingredients = useLiveQuery(() => db.ingredientMaster.toArray(), []);
+  const ingredients = useLiveQuery(() => db.ingredients.toArray(), []);
   
   // 获取配置标签映射
   const { flavorTagMap, glassTypeMap, drinkDurationMap } = useAllConfigLabelMaps();
@@ -100,8 +100,6 @@ export default function RecipeViewer() {
       </div>
     );
   }
-
-  const defaultMenuName = menuInfo?.menuNames?.find(m => m.isDefault)?.name || recipe.name;
 
   return (
     <div className="relative pb-6">

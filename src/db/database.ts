@@ -9,7 +9,6 @@ import {
   AppSettings,
   Venue,
   VenueRecipe,
-  IngredientMaster,
   VenueIngredient,
   SystemConfig,
 } from '@/types';
@@ -24,15 +23,15 @@ export class CocktailDatabase extends Dexie {
   settings!: Table<AppSettings & { id: number }, number>;
   venues!: Table<Venue, number>;
   venueRecipes!: Table<VenueRecipe, number>;
-  ingredientMaster!: Table<IngredientMaster, number>;
   venueIngredients!: Table<VenueIngredient, number>;
   systemConfigs!: Table<SystemConfig, number>;
 
   constructor() {
     super('CocktailMenuDB');
     
+    // 版本1-3：旧版本保留用于兼容性（已废弃）
     this.version(1).stores({
-      ingredients: '++id, name, category, currentStock, createdAt',
+      oldIngredients: '++id, name, category, currentStock, createdAt',
       recipes: '++id, name, parentRecipeId, isFavorite, createdAt, *tags',
       menuInfo: '++id, recipeId, isAvailable, displayOrder',
       tags: '++id, name',
@@ -43,7 +42,7 @@ export class CocktailDatabase extends Dexie {
 
     // 版本2：添加新字段支持
     this.version(2).stores({
-      ingredients: '++id, name, category, currentStock, createdAt',
+      oldIngredients: '++id, name, category, currentStock, createdAt',
       recipes: '++id, name, parentRecipeId, isFavorite, createdAt, *tags, glassType',
       menuInfo: '++id, recipeId, isAvailable, displayOrder, *flavorTags, drinkDuration',
       tags: '++id, name',
@@ -89,7 +88,7 @@ export class CocktailDatabase extends Dexie {
 
     // 版本3：添加displayOrder索引支持排序功能
     this.version(3).stores({
-      ingredients: '++id, name, category, currentStock, createdAt, displayOrder',
+      oldIngredients: '++id, name, category, currentStock, createdAt, displayOrder',
       recipes: '++id, name, parentRecipeId, isFavorite, createdAt, displayOrder, *tags, glassType',
       menuInfo: '++id, recipeId, isAvailable, displayOrder, *flavorTags, drinkDuration',
       tags: '++id, name',
@@ -111,12 +110,12 @@ export class CocktailDatabase extends Dexie {
         }
       }
       
-      // 升级ingredients表
-      const ingredients = await tx.table('ingredients').toArray();
-      console.log(`找到 ${ingredients.length} 个原料`);
-      for (let i = 0; i < ingredients.length; i++) {
-        if (ingredients[i].displayOrder === undefined) {
-          await tx.table('ingredients').update(ingredients[i].id!, { displayOrder: ingredients[i].id });
+      // 升级oldIngredients表
+      const oldIngredients = await tx.table('oldIngredients').toArray();
+      console.log(`找到 ${oldIngredients.length} 个原料`);
+      for (let i = 0; i < oldIngredients.length; i++) {
+        if (oldIngredients[i].displayOrder === undefined) {
+          await tx.table('oldIngredients').update(oldIngredients[i].id!, { displayOrder: oldIngredients[i].id });
         }
       }
       
@@ -125,7 +124,7 @@ export class CocktailDatabase extends Dexie {
 
     // 版本4：添加全局原料主数据和店面原料库
     this.version(4).stores({
-      ingredients: '++id, name, category, currentStock, createdAt, displayOrder',
+      oldIngredients: '++id, name, category, currentStock, createdAt, displayOrder',
       recipes: '++id, name, parentRecipeId, isFavorite, createdAt, displayOrder, *tags, glassType',
       menuInfo: '++id, recipeId, isAvailable, displayOrder, *flavorTags, drinkDuration',
       tags: '++id, name',
@@ -134,18 +133,18 @@ export class CocktailDatabase extends Dexie {
       settings: '++id',
       venues: '++id, name, createdAt',
       venueRecipes: '++id, venueId, recipeId, displayOrder, isAvailable',
-      ingredientMaster: '++id, name, category, displayOrder, createdAt',
-      venueIngredients: '++id, venueId, ingredientMasterId, displayOrder, [venueId+ingredientMasterId]',
+      ingredients: '++id, name, category, displayOrder, createdAt',
+      venueIngredients: '++id, venueId, ingredientId, displayOrder, [venueId+ingredientId]',
     }).upgrade(async tx => {
       console.log('开始数据库升级到Version 4...');
       
-      // 从旧的ingredients表迁移数据到ingredientMaster
-      const oldIngredients = await tx.table('ingredients').toArray();
+      // 从旧的oldIngredients表迁移数据到ingredients
+      const oldIngredients = await tx.table('oldIngredients').toArray();
       console.log(`找到 ${oldIngredients.length} 个旧原料，开始迁移...`);
       
       for (const oldIng of oldIngredients) {
         // 创建全局原料主数据 - 不包含库存字段
-        const masterId = await tx.table('ingredientMaster').add({
+        const masterId = await tx.table('ingredients').add({
           name: oldIng.name,
           nameEn: oldIng.nameEn,
           category: oldIng.category,
@@ -166,12 +165,12 @@ export class CocktailDatabase extends Dexie {
       }
       
       console.log('数据库升级到Version 4完成！');
-      console.log('注意：旧的ingredients表保留用于兼容，新数据请使用ingredientMaster和venueIngredients');
+      console.log('注意：旧的oldIngredients表保留用于兼容，新数据请使用ingredients和venueIngredients');
     });
 
-    // 版本5：修复ingredientMaster缺失字段问题
+    // 版本5：修复ingredients缺失字段问题
     this.version(5).stores({
-      ingredients: '++id, name, category, currentStock, createdAt, displayOrder',
+      oldIngredients: '++id, name, category, currentStock, createdAt, displayOrder',
       recipes: '++id, name, parentRecipeId, isFavorite, createdAt, displayOrder, *tags, glassType',
       menuInfo: '++id, recipeId, isAvailable, displayOrder, *flavorTags, drinkDuration',
       tags: '++id, name',
@@ -180,22 +179,22 @@ export class CocktailDatabase extends Dexie {
       settings: '++id',
       venues: '++id, name, createdAt',
       venueRecipes: '++id, venueId, recipeId, displayOrder, isAvailable',
-      ingredientMaster: '++id, name, category, displayOrder, createdAt, price, quantity',
-      venueIngredients: '++id, venueId, ingredientMasterId, displayOrder, [venueId+ingredientMasterId]',
+      ingredients: '++id, name, category, displayOrder, createdAt, price, quantity',
+      venueIngredients: '++id, venueId, ingredientId, displayOrder, [venueId+ingredientId]',
     }).upgrade(async tx => {
-      console.log('开始数据库升级到Version 5 - 修复ingredientMaster缺失字段...');
+      console.log('开始数据库升级到Version 5 - 修复ingredients缺失字段...');
       
-      // 检查并修复现有的ingredientMaster数据
-      const masters = await tx.table('ingredientMaster').toArray();
+      // 检查并修复现有的ingredients数据
+      const masters = await tx.table('ingredients').toArray();
       console.log(`找到 ${masters.length} 个原料主数据，检查缺失字段...`);
       
       for (const master of masters) {
         const updates: any = {};
         let needsUpdate = false;
         
-        // 如果缺少price或quantity，从ingredients表查找原始数据
+        // 如果缺少price或quantity，从oldIngredients表查找原始数据
         if (master.price === undefined || master.quantity === undefined) {
-          const oldIng = await tx.table('ingredients')
+          const oldIng = await tx.table('oldIngredients')
             .where('name')
             .equals(master.name)
             .first();
@@ -222,7 +221,7 @@ export class CocktailDatabase extends Dexie {
         }
         
         if (needsUpdate) {
-          await tx.table('ingredientMaster').update(master.id!, updates);
+          await tx.table('ingredients').update(master.id!, updates);
           console.log(`已修复原料: ${master.name}，补充缺失字段`);
         }
       }
@@ -232,7 +231,7 @@ export class CocktailDatabase extends Dexie {
 
     // 版本6：修复配方中的ingredientId映射问题
     this.version(6).stores({
-      ingredients: '++id, name, category, currentStock, createdAt, displayOrder',
+      oldIngredients: '++id, name, category, currentStock, createdAt, displayOrder',
       recipes: '++id, name, parentRecipeId, isFavorite, createdAt, displayOrder, *tags, glassType',
       menuInfo: '++id, recipeId, isAvailable, displayOrder, *flavorTags, drinkDuration',
       tags: '++id, name',
@@ -241,14 +240,14 @@ export class CocktailDatabase extends Dexie {
       settings: '++id',
       venues: '++id, name, createdAt',
       venueRecipes: '++id, venueId, recipeId, displayOrder, isAvailable',
-      ingredientMaster: '++id, name, category, displayOrder, createdAt, price, quantity',
-      venueIngredients: '++id, venueId, ingredientMasterId, displayOrder, [venueId+ingredientMasterId]',
+      ingredients: '++id, name, category, displayOrder, createdAt, price, quantity',
+      venueIngredients: '++id, venueId, ingredientId, displayOrder, [venueId+ingredientId]',
     }).upgrade(async tx => {
       console.log('开始数据库升级到Version 6 - 修复配方中的ingredientId映射...');
       
       // 建立旧ID到新ID的映射
-      const oldIngredients = await tx.table('ingredients').toArray();
-      const newIngredients = await tx.table('ingredientMaster').toArray();
+      const oldIngredients = await tx.table('oldIngredients').toArray();
+      const newIngredients = await tx.table('ingredients').toArray();
       const idMapping = new Map<number, number>();
       
       // 通过名称匹配建立映射关系
@@ -294,7 +293,7 @@ export class CocktailDatabase extends Dexie {
 
     // 版本7：添加系统配置表，支持下拉菜单配置化
     this.version(7).stores({
-      ingredients: '++id, name, category, currentStock, createdAt, displayOrder',
+      oldIngredients: null, // 删除旧表
       recipes: '++id, name, parentRecipeId, isFavorite, createdAt, displayOrder, *tags, glassType',
       menuInfo: '++id, recipeId, isAvailable, displayOrder, *flavorTags, drinkDuration',
       tags: '++id, name',
@@ -303,8 +302,8 @@ export class CocktailDatabase extends Dexie {
       settings: '++id',
       venues: '++id, name, createdAt',
       venueRecipes: '++id, venueId, recipeId, displayOrder, isAvailable',
-      ingredientMaster: '++id, name, category, displayOrder, createdAt, price, quantity',
-      venueIngredients: '++id, venueId, ingredientMasterId, displayOrder, [venueId+ingredientMasterId]',
+      ingredients: '++id, name, category, displayOrder, createdAt, price, quantity',
+      venueIngredients: '++id, venueId, ingredientId, displayOrder, [venueId+ingredientId]',
       systemConfigs: '++id, [configType+value], [configType+isActive], configType, isActive, displayOrder',
     }).upgrade(async tx => {
       console.log('开始数据库升级到Version 7 - 初始化系统配置...');
@@ -397,11 +396,27 @@ export async function initializeDefaultSettings() {
 // 初始化示例数据
 export async function initializeSampleData() {
   try {
+    // 不再自动添加示例原料,用户可以自行添加或导入数据
+    // 如果需要示例数据,请在设置页面手动触发
+    
     const ingredientsCount = await db.ingredients.count();
     
-    if (ingredientsCount === 0) {
-    // 添加示例原料
-    const sampleIngredients: Ingredient[] = [
+    // 仅初始化标签数据(如果为空)
+    const tagsCount = await db.tags.count();
+    if (tagsCount === 0) {
+      const sampleTags: Tag[] = [
+        { name: '经典款', color: '#3b82f6', createdAt: new Date() },
+        { name: '夏季特饮', color: '#10b981', createdAt: new Date() },
+        { name: '低酒精', color: '#f59e0b', createdAt: new Date() },
+        { name: '热门', color: '#ef4444', createdAt: new Date() },
+      ];
+      await db.tags.bulkAdd(sampleTags);
+    }
+    
+    // 以下代码已禁用 - 不再自动添加示例原料
+    if (false && ingredientsCount === 0) {
+    // 添加示例原料到全局原料库
+    const sampleIngredients: Omit<Ingredient, 'id'>[] = [
       {
         name: '金酒',
         nameEn: 'Gin',
@@ -410,8 +425,9 @@ export async function initializeSampleData() {
         quantity: 700,
         unit: 'ml',
         alcoholContent: 40,
-        currentStock: 700,
-        minStock: 200,
+        wastageRate: 5,
+        unitPrice: 180 / (700 * 0.95),
+        displayOrder: 1,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -423,8 +439,9 @@ export async function initializeSampleData() {
         quantity: 700,
         unit: 'ml',
         alcoholContent: 40,
-        currentStock: 700,
-        minStock: 200,
+        wastageRate: 5,
+        unitPrice: 150 / (700 * 0.95),
+        displayOrder: 2,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -436,8 +453,9 @@ export async function initializeSampleData() {
         quantity: 700,
         unit: 'ml',
         alcoholContent: 40,
-        currentStock: 700,
-        minStock: 200,
+        wastageRate: 5,
+        unitPrice: 160 / (700 * 0.95),
+        displayOrder: 3,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -449,8 +467,9 @@ export async function initializeSampleData() {
         quantity: 700,
         unit: 'ml',
         alcoholContent: 40,
-        currentStock: 700,
-        minStock: 200,
+        wastageRate: 5,
+        unitPrice: 200 / (700 * 0.95),
+        displayOrder: 4,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -462,8 +481,9 @@ export async function initializeSampleData() {
         quantity: 700,
         unit: 'ml',
         alcoholContent: 40,
-        currentStock: 700,
-        minStock: 100,
+        wastageRate: 5,
+        unitPrice: 220 / (700 * 0.95),
+        displayOrder: 5,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -475,8 +495,9 @@ export async function initializeSampleData() {
         quantity: 500,
         unit: 'ml',
         alcoholContent: 0,
-        currentStock: 500,
-        minStock: 100,
+        wastageRate: 5,
+        unitPrice: 30 / (500 * 0.95),
+        displayOrder: 6,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -488,8 +509,9 @@ export async function initializeSampleData() {
         quantity: 500,
         unit: 'ml',
         alcoholContent: 0,
-        currentStock: 500,
-        minStock: 100,
+        wastageRate: 5,
+        unitPrice: 30 / (500 * 0.95),
+        displayOrder: 7,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -501,24 +523,15 @@ export async function initializeSampleData() {
         quantity: 500,
         unit: 'ml',
         alcoholContent: 0,
-        currentStock: 500,
-        minStock: 100,
+        wastageRate: 5,
+        unitPrice: 20 / (500 * 0.95),
+        displayOrder: 8,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
     ];
 
     await db.ingredients.bulkAdd(sampleIngredients);
-
-    // 添加示例标签
-    const sampleTags: Tag[] = [
-      { name: '经典款', color: '#3b82f6', createdAt: new Date() },
-      { name: '夏季特饮', color: '#10b981', createdAt: new Date() },
-      { name: '低酒精', color: '#f59e0b', createdAt: new Date() },
-      { name: '热门', color: '#ef4444', createdAt: new Date() },
-    ];
-
-    await db.tags.bulkAdd(sampleTags);
     }
   } catch (error) {
     console.error('Failed to initialize sample data:', error);

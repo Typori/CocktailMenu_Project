@@ -1,8 +1,9 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { Recipe, MenuInfo, ExportConfig } from '@/types';
+import { ExportConfig } from '@/types';
 import { db } from '@/db/database';
 import { getAppVersion } from '@/config/version';
+import { runFullDataRepair } from './dataRepair';
 
 // 导出为JSON（兼容不同数据库版本）
 export async function exportToJson(): Promise<void> {
@@ -11,22 +12,12 @@ export async function exportToJson(): Promise<void> {
     version: getAppVersion(),
   };
 
-  // 导出新版本的 ingredientMaster（优先）
-  try {
-    data.ingredientMaster = await db.ingredientMaster.toArray();
-    console.log(`导出 ${data.ingredientMaster.length} 个原料主数据`);
-  } catch (e) {
-    console.warn('Failed to export ingredientMaster:', e);
-  }
-
-  // 为了向后兼容，也导出旧的 ingredients 表（如果存在）
+  // 导出原料数据
   try {
     data.ingredients = await db.ingredients.toArray();
-    if (data.ingredients.length > 0) {
-      console.log(`导出 ${data.ingredients.length} 个旧版原料数据（向后兼容）`);
-    }
+    console.log(`导出 ${data.ingredients.length} 个原料数据`);
   } catch (e) {
-    console.warn('Failed to export ingredients (old table):', e);
+    console.warn('Failed to export ingredients:', e);
   }
 
   try {
@@ -116,18 +107,14 @@ export async function importFromJson(file: File): Promise<void> {
         
         // 导入数据（使用 bulkPut 会合并/更新现有数据）
         
-        // 优先处理新版本的 ingredientMaster 数据
-        if (data.ingredientMaster && data.ingredientMaster.length > 0) {
-          console.log(`正在导入 ${data.ingredientMaster.length} 个原料主数据...`);
-          await db.ingredientMaster.bulkPut(data.ingredientMaster);
-          console.log('原料主数据导入完成');
-        } 
-        // 如果没有新版数据，则处理旧版本的 ingredients 数据，迁移到 ingredientMaster
-        else if (data.ingredients && data.ingredients.length > 0) {
-          console.log(`正在导入 ${data.ingredients.length} 个原料到 ingredientMaster（旧版本迁移）...`);
+        // 导入原料数据（兼容旧版本的 ingredientMaster 字段名）
+        const ingredientsData = data.ingredients || data.ingredientMaster;
+        if (ingredientsData && ingredientsData.length > 0) {
+          console.log(`正在导入 ${ingredientsData.length} 个原料数据...`);
           
-          // 将旧的 ingredients 数据转换为 ingredientMaster 格式
-          const masterIngredients = data.ingredients.map((ing: any) => ({
+          // 确保数据格式正确，保留原始ID
+          const formattedIngredients = ingredientsData.map((ing: any) => ({
+            id: ing.id, // ⚠️ 重要：保留原始ID，确保配方引用正确
             name: ing.name,
             nameEn: ing.nameEn,
             category: ing.category,
@@ -144,53 +131,114 @@ export async function importFromJson(file: File): Promise<void> {
             updatedAt: ing.updatedAt ? new Date(ing.updatedAt) : new Date(),
           }));
           
-          await db.ingredientMaster.bulkPut(masterIngredients);
-          console.log('原料数据导入完成（从旧版本迁移）');
+          await db.ingredients.bulkPut(formattedIngredients);
+          console.log(`✅ 已导入 ${formattedIngredients.length} 个原料`);
+          
+          // 验证导入结果
+          const importedCount = await db.ingredients.count();
+          console.log(`📊 当前原料库总数: ${importedCount}`);
         }
         
         // 导入其他表数据
-        if (data.recipes) {
+        if (data.recipes && data.recipes.length > 0) {
           console.log(`正在导入 ${data.recipes.length} 个配方...`);
-          await db.recipes.bulkPut(data.recipes);
+          // 确保日期字段正确转换
+          const formattedRecipes = data.recipes.map((recipe: any) => ({
+            ...recipe,
+            createdAt: recipe.createdAt ? new Date(recipe.createdAt) : new Date(),
+            updatedAt: recipe.updatedAt ? new Date(recipe.updatedAt) : new Date(),
+          }));
+          await db.recipes.bulkPut(formattedRecipes);
+          console.log(`✅ 已导入 ${formattedRecipes.length} 个配方`);
         }
-        if (data.menuInfo) {
+        
+        if (data.menuInfo && data.menuInfo.length > 0) {
           console.log(`正在导入 ${data.menuInfo.length} 个菜单信息...`);
           await db.menuInfo.bulkPut(data.menuInfo);
+          console.log(`✅ 已导入 ${data.menuInfo.length} 个菜单信息`);
         }
-        if (data.tags) {
+        
+        if (data.tags && data.tags.length > 0) {
           console.log(`正在导入 ${data.tags.length} 个标签...`);
-          await db.tags.bulkPut(data.tags);
+          const formattedTags = data.tags.map((tag: any) => ({
+            ...tag,
+            createdAt: tag.createdAt ? new Date(tag.createdAt) : new Date(),
+          }));
+          await db.tags.bulkPut(formattedTags);
+          console.log(`✅ 已导入 ${formattedTags.length} 个标签`);
         }
-        if (data.inventoryLogs) {
+        
+        if (data.inventoryLogs && data.inventoryLogs.length > 0) {
           console.log(`正在导入 ${data.inventoryLogs.length} 个库存日志...`);
-          await db.inventoryLogs.bulkPut(data.inventoryLogs);
+          const formattedLogs = data.inventoryLogs.map((log: any) => ({
+            ...log,
+            timestamp: log.timestamp ? new Date(log.timestamp) : new Date(),
+          }));
+          await db.inventoryLogs.bulkPut(formattedLogs);
+          console.log(`✅ 已导入 ${formattedLogs.length} 个库存日志`);
         }
-        if (data.makingNotes) {
+        
+        if (data.makingNotes && data.makingNotes.length > 0) {
           console.log(`正在导入 ${data.makingNotes.length} 个制作笔记...`);
-          await db.makingNotes.bulkPut(data.makingNotes);
+          const formattedNotes = data.makingNotes.map((note: any) => ({
+            ...note,
+            timestamp: note.timestamp ? new Date(note.timestamp) : new Date(),
+          }));
+          await db.makingNotes.bulkPut(formattedNotes);
+          console.log(`✅ 已导入 ${formattedNotes.length} 个制作笔记`);
         }
-        if (data.settings) {
-          console.log(`正在导入设置...`);
+        
+        if (data.settings && data.settings.length > 0) {
+          console.log(`正在导入 ${data.settings.length} 个设置...`);
           await db.settings.bulkPut(data.settings);
+          console.log(`✅ 已导入设置`);
         }
-        if (data.venues) {
+        
+        if (data.venues && data.venues.length > 0) {
           console.log(`正在导入 ${data.venues.length} 个场所...`);
-          await db.venues.bulkPut(data.venues);
+          const formattedVenues = data.venues.map((venue: any) => ({
+            ...venue,
+            createdAt: venue.createdAt ? new Date(venue.createdAt) : new Date(),
+            updatedAt: venue.updatedAt ? new Date(venue.updatedAt) : new Date(),
+          }));
+          await db.venues.bulkPut(formattedVenues);
+          console.log(`✅ 已导入 ${formattedVenues.length} 个场所`);
         }
-        if (data.venueRecipes) {
+        
+        if (data.venueRecipes && data.venueRecipes.length > 0) {
           console.log(`正在导入 ${data.venueRecipes.length} 个场所配方...`);
           await db.venueRecipes.bulkPut(data.venueRecipes);
+          console.log(`✅ 已导入 ${data.venueRecipes.length} 个场所配方`);
         }
-        if (data.venueIngredients) {
+        
+        if (data.venueIngredients && data.venueIngredients.length > 0) {
           console.log(`正在导入 ${data.venueIngredients.length} 个场所原料...`);
-          await db.venueIngredients.bulkPut(data.venueIngredients);
+          const formattedVenueIngs = data.venueIngredients.map((vi: any) => ({
+            ...vi,
+            createdAt: vi.createdAt ? new Date(vi.createdAt) : new Date(),
+            updatedAt: vi.updatedAt ? new Date(vi.updatedAt) : new Date(),
+          }));
+          await db.venueIngredients.bulkPut(formattedVenueIngs);
+          console.log(`✅ 已导入 ${formattedVenueIngs.length} 个场所原料`);
         }
-        if (data.systemConfigs) {
+        
+        if (data.systemConfigs && data.systemConfigs.length > 0) {
           console.log(`正在导入 ${data.systemConfigs.length} 个系统配置...`);
-          await db.systemConfigs.bulkPut(data.systemConfigs);
+          const formattedConfigs = data.systemConfigs.map((config: any) => ({
+            ...config,
+            createdAt: config.createdAt ? new Date(config.createdAt) : new Date(),
+            updatedAt: config.updatedAt ? new Date(config.updatedAt) : new Date(),
+          }));
+          await db.systemConfigs.bulkPut(formattedConfigs);
+          console.log(`✅ 已导入 ${formattedConfigs.length} 个系统配置`);
         }
         
         console.log('✅ 所有数据导入完成！');
+        
+        // 运行数据修复流程
+        console.log('\n🔧 开始数据修复流程...');
+        await runFullDataRepair();
+        
         resolve();
       } catch (error) {
         console.error('导入失败:', error);
@@ -234,13 +282,14 @@ export async function exportMenuToPdf(
 
     // 酒名
     pdf.setFontSize(16);
-    pdf.text(menuInfo?.menuName || recipe.name, 20, yPosition);
+    const displayName = menuInfo?.menuNames?.[0]?.name || recipe.name;
+    pdf.text(displayName, 20, yPosition);
     yPosition += 8;
 
-    if (menuInfo?.menuNameEn) {
+    if (recipe.nameEn) {
       pdf.setFontSize(12);
       pdf.setTextColor(100);
-      pdf.text(menuInfo.menuNameEn, 20, yPosition);
+      pdf.text(recipe.nameEn, 20, yPosition);
       pdf.setTextColor(0);
       yPosition += 8;
     }
@@ -270,7 +319,7 @@ export async function exportMenuToPdf(
       yPosition += 5;
       
       for (const ing of recipe.ingredients) {
-        const ingredient = await db.ingredientMaster.get(ing.ingredientId);
+        const ingredient = await db.ingredients.get(ing.ingredientId);
         if (ingredient) {
           pdf.text(`- ${ingredient.name} ${ing.quantity}${ing.unit}`, 25, yPosition);
           yPosition += 4;
@@ -320,7 +369,8 @@ function formatDate(date: Date): string {
 }
 
 // 生成购物清单
-export async function generateShoppingList(recipeIds: number[]): Promise<string> {
+// 生成购物清单（基于店面库存）
+export async function generateShoppingList(recipeIds: number[], venueId?: number): Promise<string> {
   const ingredientMap = new Map<number, { name: string; quantity: number; unit: string }>();
 
   for (const recipeId of recipeIds) {
@@ -328,10 +378,20 @@ export async function generateShoppingList(recipeIds: number[]): Promise<string>
     if (!recipe) continue;
 
     for (const recipeIng of recipe.ingredients) {
-      const ingredient = await db.ingredientMaster.get(recipeIng.ingredientId);
+      const ingredient = await db.ingredients.get(recipeIng.ingredientId);
       if (!ingredient) continue;
 
-      const currentStock = ingredient.currentStock || 0;
+      let currentStock = 0;
+      
+      // 如果指定了店面，从店面库存中获取
+      if (venueId) {
+        const venueIng = await db.venueIngredients
+          .where('[venueId+ingredientId]')
+          .equals([venueId, recipeIng.ingredientId])
+          .first();
+        currentStock = venueIng?.currentStock || 0;
+      }
+
       const needed = recipeIng.quantity;
 
       if (currentStock < needed) {
@@ -352,9 +412,13 @@ export async function generateShoppingList(recipeIds: number[]): Promise<string>
   }
 
   let shoppingList = '购物清单\n\n';
-  ingredientMap.forEach((item) => {
-    shoppingList += `- ${item.name}: ${item.quantity}${item.unit}\n`;
-  });
+  if (ingredientMap.size === 0) {
+    shoppingList += '所有原料库存充足！\n';
+  } else {
+    ingredientMap.forEach((item) => {
+      shoppingList += `- ${item.name}: ${item.quantity}${item.unit}\n`;
+    });
+  }
 
   return shoppingList;
 }

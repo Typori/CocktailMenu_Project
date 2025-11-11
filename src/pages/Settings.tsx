@@ -1,12 +1,11 @@
 import { useState, useRef } from 'react';
-import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
-import { Settings as SettingsIcon, Palette, Database, Bell, Download, Upload, AlertCircle, CheckCircle2, RefreshCw, Archive } from 'lucide-react';
+import { Settings as SettingsIcon, Palette, Database, Bell, Download, Upload, AlertCircle, CheckCircle2, RefreshCw, Wrench } from 'lucide-react';
 import { exportToJson, importFromJson } from '@/utils/export';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { db } from '@/db/database';
@@ -14,6 +13,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useNotificationSettings } from '@/hooks/useNotificationSettings';
 import { SystemConfigManager } from '@/components/SystemConfigManager';
 import { getAppVersion, getDbVersion } from '@/config/version';
+import { Link } from 'react-router-dom';
 import {
   Select,
   SelectContent,
@@ -90,7 +90,7 @@ export default function Settings() {
 
       // 清空所有表（保留 systemConfigs）
       await db.transaction('rw', [
-        db.ingredientMaster,
+        db.ingredients,
         db.recipes,
         db.menuInfo,
         db.tags,
@@ -101,7 +101,7 @@ export default function Settings() {
         db.venueRecipes,
         db.venueIngredients,
       ], async () => {
-        await db.ingredientMaster.clear();
+        await db.ingredients.clear();
         await db.recipes.clear();
         await db.menuInfo.clear();
         await db.tags.clear();
@@ -226,6 +226,19 @@ export default function Settings() {
                 {isUpgrading ? '清空中...' : '清空数据库'}
               </Button>
             </div>
+            
+            <div className="pt-4 border-t">
+              <Link to="/data-repair">
+                <Button variant="outline" className="w-full">
+                  <Wrench className="h-4 w-4 mr-2" />
+                  数据修复工具
+                </Button>
+              </Link>
+              <p className="text-sm text-muted-foreground mt-2">
+                如果导入数据后出现原料ID不匹配问题，可以使用数据修复工具
+              </p>
+            </div>
+            
             <input
               ref={fileInputRef}
               type="file"
@@ -287,34 +300,6 @@ export default function Settings() {
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        {/* 备份页面 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Archive className="h-5 w-5" />
-              备份页面
-            </CardTitle>
-            <CardDescription>
-              访问旧版本的功能页面（仅供开发和测试使用）
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Link to="/ingredients">
-              <Button variant="outline" className="w-full justify-start">
-                原料管理（旧版本）
-              </Button>
-            </Link>
-            <Link to="/inventory">
-              <Button variant="outline" className="w-full justify-start">
-                库存管理（旧版本）
-              </Button>
-            </Link>
-            <p className="text-xs text-muted-foreground">
-              注意：备份页面可能包含过时的功能或界面，仅用于数据恢复或功能对比。
-            </p>
           </CardContent>
         </Card>
 

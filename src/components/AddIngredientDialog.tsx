@@ -11,25 +11,25 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { db } from '@/db/database';
-import { IngredientMaster, SpiritType, Unit } from '@/types';
+import { Ingredient, SpiritType, Unit } from '@/types';
 import { calculateUnitPrice } from '@/utils/calculations';
 import { useSystemConfigOptions } from '@/hooks/useSystemConfig';
 
-interface AddIngredientMasterDialogProps {
+interface AddIngredientDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  editingIngredient?: IngredientMaster;
+  editingIngredient?: Ingredient;
 }
 
-export default function AddIngredientMasterDialog({
+export default function AddIngredientDialog({
   open,
   onOpenChange,
   editingIngredient,
-}: AddIngredientMasterDialogProps) {
+}: AddIngredientDialogProps) {
   // 使用自定义 Hook 动态加载配置
   const categoryOptions = useSystemConfigOptions('spiritType');
   const unitOptions = useSystemConfigOptions('unit');
-  const [formData, setFormData] = useState<Partial<IngredientMaster>>({
+  const [formData, setFormData] = useState<Partial<Ingredient>>({
     name: '',
     nameEn: '',
     category: 'spirit',
@@ -76,7 +76,7 @@ export default function AddIngredientMasterDialog({
         price: formData.price || 0,
         quantity: formData.quantity || 750,
         wastageRate: formData.wastageRate,
-      } as IngredientMaster);
+      } as Ingredient);
 
       const dataToSave = {
         ...formData,
@@ -86,16 +86,16 @@ export default function AddIngredientMasterDialog({
 
       if (editingIngredient?.id) {
         // 更新现有原料
-        await db.ingredientMaster.update(editingIngredient.id, dataToSave);
+        await db.ingredients.update(editingIngredient.id, dataToSave);
       } else {
         // 添加新原料
-        const maxOrder = await db.ingredientMaster
+        const maxOrder = await db.ingredients
           .orderBy('displayOrder')
           .reverse()
           .first();
         
-        await db.ingredientMaster.add({
-          ...dataToSave as IngredientMaster,
+        await db.ingredients.add({
+          ...dataToSave as Ingredient,
           displayOrder: (maxOrder?.displayOrder || 0) + 1,
           createdAt: new Date(),
         });

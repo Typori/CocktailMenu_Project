@@ -5,7 +5,7 @@ import { db } from '@/db/database';
 import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Home, Wine, BookOpen, Package, TrendingUp, AlertTriangle, Star } from 'lucide-react';
+import { Home, Wine, BookOpen, Package, TrendingUp, Star } from 'lucide-react';
 import { Statistics } from '@/types';
 
 export default function Dashboard() {
@@ -23,7 +23,7 @@ export default function Dashboard() {
   });
 
   const recipes = useLiveQuery(() => db.recipes.toArray(), []);
-  const ingredients = useLiveQuery(() => db.ingredientMaster.toArray(), []);
+  const ingredients = useLiveQuery(() => db.ingredients.toArray(), []);
   const favoriteRecipes = useLiveQuery(() => 
     db.recipes.filter(r => r.isFavorite === true).toArray(),
     []
@@ -33,7 +33,7 @@ export default function Dashboard() {
     const calculateStats = async () => {
       try {
         const totalRecipes = await db.recipes.count();
-        const totalIngredients = await db.ingredientMaster.count();
+        const totalIngredients = await db.ingredients.count();
         
         const allRecipes = await db.recipes.toArray();
         const avgCost = allRecipes.reduce((sum, r) => sum + (r.calculatedCost || 0), 0) / (totalRecipes || 1);
@@ -41,9 +41,8 @@ export default function Dashboard() {
         const allMenuInfo = await db.menuInfo.toArray();
         const avgProfit = allMenuInfo.reduce((sum, m) => sum + (m.profitMargin || 0), 0) / (allMenuInfo.length || 1);
         
-        const lowStock = await db.ingredients
-          .filter(ing => (ing.currentStock || 0) < (ing.minStock || 0))
-          .toArray();
+        // 注意：库存警告功能已移至店面管理，这里不再显示
+        const lowStock: any[] = [];
 
         setStats({
           totalRecipes,
@@ -52,11 +51,7 @@ export default function Dashboard() {
           averageProfit: Math.round(avgProfit * 10) / 10,
           mostUsedIngredients: [],
           popularRecipes: [],
-          lowStockItems: lowStock.map(ing => ({
-            id: ing.id!,
-            name: ing.name,
-            stock: ing.currentStock || 0,
-          })),
+          lowStockItems: lowStock,
         });
       } catch (error) {
         console.error('Failed to calculate stats:', error);
@@ -169,40 +164,36 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* 库存警告 */}
+        {/* 快速访问 */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-orange-500" />
-              库存警告
+              <Package className="h-5 w-5 text-blue-500" />
+              快速访问
             </CardTitle>
-            <CardDescription>需要补充的原料</CardDescription>
+            <CardDescription>常用功能和店面管理</CardDescription>
           </CardHeader>
           <CardContent>
-            {stats.lowStockItems.length > 0 ? (
-              <div className="space-y-2">
-                {stats.lowStockItems.slice(0, 5).map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-900 p-3"
-                  >
-                    <div>
-                      <p className="font-medium">{item.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        当前库存: {item.stock}
-                      </p>
-                    </div>
-                    <Link to="/inventory">
-                      <Button size="sm" variant="outline">补货</Button>
-                    </Link>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <p>所有原料库存充足 ✓</p>
-              </div>
-            )}
+            <div className="space-y-2">
+              <Link to="/ingredient-master">
+                <Button variant="outline" className="w-full justify-start touch-feedback">
+                  <Wine className="mr-2 h-4 w-4" />
+                  原料库管理
+                </Button>
+              </Link>
+              <Link to="/venues">
+                <Button variant="outline" className="w-full justify-start touch-feedback">
+                  <Package className="mr-2 h-4 w-4" />
+                  店面管理（含库存）
+                </Button>
+              </Link>
+              <Link to="/menu">
+                <Button variant="outline" className="w-full justify-start touch-feedback">
+                  <BookOpen className="mr-2 h-4 w-4" />
+                  查看酒单
+                </Button>
+              </Link>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -221,7 +212,7 @@ export default function Dashboard() {
                 创建新配方
               </Button>
             </Link>
-            <Link to="/ingredients">
+            <Link to="/ingredient-master">
               <Button className="w-full touch-feedback" variant="outline">
                 <Wine className="mr-2 h-4 w-4" />
                 管理原料

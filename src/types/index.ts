@@ -38,7 +38,7 @@ export interface SystemConfig {
   updatedAt?: Date;
 }
 
-// 原料接口
+// 原料接口（全局原料主数据）
 export interface Ingredient {
   id?: number;
   name: string;
@@ -50,8 +50,6 @@ export interface Ingredient {
   alcoholContent?: number; // 酒精度 (0-100)
   wastageRate?: number; // 损耗率 (0-100)，默认5%
   unitPrice?: number; // 单位价格 (自动计算)
-  currentStock?: number; // 当前库存
-  minStock?: number; // 最低库存阈值
   displayOrder?: number; // 展示顺序
   notes?: string;
   createdAt?: Date;
@@ -163,7 +161,7 @@ export interface MakingNote {
 export interface SearchFilters {
   keyword?: string;
   spiritTypes?: SpiritType[];
-  flavorProfiles?: FlavorProfile[];
+  flavorProfiles?: FlavorTag[];
   tags?: string[];
   abvRange?: [number, number];
   priceRange?: [number, number];
@@ -225,29 +223,11 @@ export interface VenueRecipe {
   updatedAt?: Date;
 }
 
-// 全局原料主数据接口
-export interface IngredientMaster {
-  id?: number;
-  name: string;
-  nameEn?: string;
-  category: SpiritType;
-  price: number; // 总价格
-  quantity: number; // 数量
-  unit: Unit; // 单位
-  alcoholContent?: number; // 酒精度 (0-100)
-  wastageRate?: number; // 损耗率 (0-100)，默认5%
-  unitPrice?: number; // 单位价格 (自动计算)
-  displayOrder?: number; // 展示顺序
-  notes?: string;
-  createdAt?: Date;
-  updatedAt?: Date;
-}
-
 // 店面原料库接口（含价格、库存、供应商等店面特定信息）
 export interface VenueIngredient {
   id?: number;
   venueId: number;
-  ingredientMasterId: number;
+  ingredientId: number; // 关联到全局原料表
   ingredientName?: string; // 冗余字段，方便显示
   price: number; // 总价格
   quantity: number; // 数量

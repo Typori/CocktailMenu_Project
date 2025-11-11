@@ -1,4 +1,4 @@
-import { Recipe, RecipeIngredient, Ingredient, Unit, FlavorTag, DrinkDuration, GlassType } from '@/types';
+import { Recipe, Ingredient, Unit, FlavorTag, DrinkDuration, GlassType } from '@/types';
 import { db } from '@/db/database';
 import { getConfigLabel } from './systemConfig';
 
@@ -73,7 +73,7 @@ export async function calculateRecipeCost(recipe: Recipe): Promise<number> {
   let totalCost = 0;
 
   for (const recipeIngredient of recipe.ingredients) {
-    const ingredient = await db.ingredientMaster.get(recipeIngredient.ingredientId);
+    const ingredient = await db.ingredients.get(recipeIngredient.ingredientId);
     if (ingredient) {
       const unitPrice = calculateUnitPrice(ingredient);
       // 转换为相同单位进行计算
@@ -94,7 +94,7 @@ export async function calculateRecipeAbv(recipe: Recipe): Promise<number> {
   let totalVolume = 0;
 
   for (const recipeIngredient of recipe.ingredients) {
-    const ingredient = await db.ingredientMaster.get(recipeIngredient.ingredientId);
+    const ingredient = await db.ingredients.get(recipeIngredient.ingredientId);
     if (ingredient) {
       const volumeInMl = convertToMl(recipeIngredient.quantity, recipeIngredient.unit);
       totalVolume += volumeInMl;
@@ -138,17 +138,27 @@ export function scaleRecipe(recipe: Recipe, multiplier: number): Recipe {
   };
 }
 
-// 检查是否有足够库存制作配方
-export async function checkRecipeStock(recipe: Recipe): Promise<{
+// 检查是否有足够库存制作配方（基于店面库存）
+export async function checkRecipeStock(recipe: Recipe, venueId?: number): Promise<{
   canMake: boolean;
   missingIngredients: Array<{ id: number; name: string; needed: number; available: number }>;
 }> {
   const missingIngredients: Array<{ id: number; name: string; needed: number; available: number }> = [];
 
   for (const recipeIngredient of recipe.ingredients) {
-    const ingredient = await db.ingredientMaster.get(recipeIngredient.ingredientId);
+    const ingredient = await db.ingredients.get(recipeIngredient.ingredientId);
     if (ingredient) {
-      const currentStock = ingredient.currentStock || 0;
+      let currentStock = 0;
+      
+      // 如果指定了店面，从店面库存中获取
+      if (venueId) {
+        const venueIng = await db.venueIngredients
+          .where('[venueId+ingredientId]')
+          .equals([venueId, recipeIngredient.ingredientId])
+          .first();
+        currentStock = venueIng?.currentStock || 0;
+      }
+      
       const neededQuantity = recipeIngredient.unit === ingredient.unit
         ? recipeIngredient.quantity
         : convertUnit(recipeIngredient.quantity, recipeIngredient.unit, ingredient.unit);

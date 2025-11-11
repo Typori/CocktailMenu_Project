@@ -33,7 +33,7 @@ export default function SingleRecipeView() {
       setMenuInfo(m || null);
 
       const ings = await Promise.all(
-        r.ingredients.map(ing => db.ingredientMaster.get(ing.ingredientId))
+        r.ingredients.map(ing => db.ingredients.get(ing.ingredientId))
       );
       setIngredients(ings.filter(Boolean) as Ingredient[]);
     }
@@ -110,10 +110,10 @@ export default function SingleRecipeView() {
         {/* 酒名 */}
         <div className="text-center space-y-2">
           <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
-            {menuInfo?.menuName || recipe.name}
+            {menuInfo?.menuNames?.[0]?.name || recipe.name}
           </h1>
-          {menuInfo?.menuNameEn && (
-            <p className="text-2xl text-muted-foreground">{menuInfo.menuNameEn}</p>
+          {recipe.nameEn && (
+            <p className="text-2xl text-muted-foreground">{recipe.nameEn}</p>
           )}
         </div>
 

@@ -59,14 +59,14 @@ export async function checkConfigUsage(config: SystemConfig): Promise<number> {
   switch (config.configType) {
     case 'spiritType':
       // 检查原料主数据
-      count += await db.ingredientMaster
+      count += await db.ingredients
         .where('category').equals(config.value)
         .count();
       break;
       
     case 'unit':
       // 检查原料主数据的单位
-      count += await db.ingredientMaster
+      count += await db.ingredients
         .where('unit').equals(config.value)
         .count();
       // 检查配方中的配料单位
@@ -233,14 +233,14 @@ export async function migrateConfigValue(
   switch (oldConfig.configType) {
     case 'spiritType':
       // 更新所有使用该分类的原料
-      await db.ingredientMaster
+      await db.ingredients
         .where('category').equals(oldValue)
         .modify({ category: newValue || '' });
       break;
       
     case 'unit':
       // 更新原料主数据
-      await db.ingredientMaster
+      await db.ingredients
         .where('unit').equals(oldValue)
         .modify({ unit: newValue || '' });
       

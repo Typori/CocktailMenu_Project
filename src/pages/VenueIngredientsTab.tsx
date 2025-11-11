@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { db } from '@/db/database';
-import { VenueIngredient, IngredientMaster, SpiritType } from '@/types';
+import { VenueIngredient, Ingredient, SpiritType } from '@/types';
 import AddVenueIngredientDialog from '@/components/AddVenueIngredientDialog';
 import { formatCurrency } from '@/utils/calculations';
 import {
@@ -58,7 +58,7 @@ const categoryColors: Record<SpiritType, string> = {
 };
 
 interface SortableIngredientProps {
-  ingredient: VenueIngredient & { master?: IngredientMaster };
+  ingredient: VenueIngredient & { master?: Ingredient };
   onEdit: (ingredient: VenueIngredient) => void;
   onDelete: (id: number) => void;
   onFillStock: (id: number, quantity: number) => void;
@@ -180,8 +180,8 @@ function SortableIngredient({ ingredient, onEdit, onDelete, onFillStock, onClear
 }
 
 export default function VenueIngredientsTab({ venueId, activeTab, onTabChange }: VenueIngredientsTabProps) {
-  const [ingredients, setIngredients] = useState<(VenueIngredient & { master?: IngredientMaster })[]>([]);
-  const [filteredIngredients, setFilteredIngredients] = useState<(VenueIngredient & { master?: IngredientMaster })[]>([]);
+  const [ingredients, setIngredients] = useState<(VenueIngredient & { master?: Ingredient })[]>([]);
+  const [filteredIngredients, setFilteredIngredients] = useState<(VenueIngredient & { master?: Ingredient })[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<SpiritType | 'all'>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -192,7 +192,7 @@ export default function VenueIngredientsTab({ venueId, activeTab, onTabChange }:
     [venueId]
   );
 
-  const ingredientMasters = useLiveQuery(() => db.ingredientMaster.toArray(), []);
+  const ingredientMasters = useLiveQuery(() => db.ingredients.toArray(), []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -209,7 +209,7 @@ export default function VenueIngredientsTab({ venueId, activeTab, onTabChange }:
   useEffect(() => {
     if (venueIngredients && ingredientMasters) {
       const merged = venueIngredients.map(vi => {
-        const master = ingredientMasters.find(m => m.id === vi.ingredientMasterId);
+        const master = ingredientMasters.find(m => m.id === vi.ingredientId);
         return { ...vi, master };
       });
       setIngredients(merged);

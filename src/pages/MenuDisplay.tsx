@@ -84,9 +84,11 @@ export default function MenuDisplay() {
               <CardContent className="p-6">
                 <div className="space-y-3">
                   <div>
-                    <h3 className="text-2xl font-bold">{menuInfo?.menuName || recipe.name}</h3>
-                    {menuInfo?.menuNameEn && (
-                      <p className="text-sm text-muted-foreground">{menuInfo.menuNameEn}</p>
+                    <h3 className="text-2xl font-bold">
+                      {menuInfo?.menuNames?.[0]?.name || recipe.name}
+                    </h3>
+                    {recipe.nameEn && (
+                      <p className="text-sm text-muted-foreground">{recipe.nameEn}</p>
                     )}
                   </div>
 
@@ -103,7 +105,7 @@ export default function MenuDisplay() {
                     {menuInfo?.price && (
                       <Badge variant="secondary">{formatCurrency(menuInfo.price)}</Badge>
                     )}
-                    {menuInfo?.flavorProfiles?.map((flavor, idx) => (
+                    {menuInfo?.flavorTags?.map((flavor: string, idx: number) => (
                       <Badge key={idx} variant="outline">{flavor}</Badge>
                     ))}
                   </div>

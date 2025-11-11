@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Filter, X, GripVertical, Check, FileDown, Edit, Trash2, Star, RefreshCw } from 'lucide-react';
@@ -238,7 +238,7 @@ export default function VenueMenuTab({ venueId, activeTab, onTabChange }: VenueM
 
   const allRecipes = useLiveQuery(() => db.recipes.toArray(), []);
   const allMenuInfos = useLiveQuery(() => db.menuInfo.toArray(), []);
-  const ingredients = useLiveQuery(() => db.ingredientMaster.toArray(), []);
+  const ingredients = useLiveQuery(() => db.ingredients.toArray(), []);
   const venue = useLiveQuery(() => db.venues.get(venueId), [venueId]);
   
   const venueRecipes = useLiveQuery(
@@ -468,7 +468,7 @@ export default function VenueMenuTab({ venueId, activeTab, onTabChange }: VenueM
     // 创建一个库存映射表（原料主数据ID -> 当前库存）
     const stockMap = new Map<number, number>();
     venueIngredients.forEach(vi => {
-      stockMap.set(vi.ingredientMasterId, vi.currentStock || 0);
+      stockMap.set(vi.ingredientId, vi.currentStock || 0);
     });
 
     let updatedCount = 0;
