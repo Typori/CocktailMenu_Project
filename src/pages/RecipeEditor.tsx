@@ -27,6 +27,7 @@ import {
 import { MultiSelect } from '@/components/ui/multi-select';
 import { ImagePreviewDialog } from '@/components/ImagePreviewDialog';
 import { Combobox } from '@/components/ui/combobox';
+import AddIngredientDialog from '@/components/AddIngredientDialog';
 import { ArrowLeft, Save, Plus, Trash2, X, Upload, ImageIcon, GripVertical } from 'lucide-react';
 import { updateRecipeCalculations, convertUnit, canConvertUnits, convertToMl } from '@/utils/calculations';
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
@@ -57,6 +58,7 @@ function SortableIngredientItem({
   unitOptions,
   onIngredientChange,
   onRemove,
+  onAddNewIngredient,
 }: {
   ingredient: RecipeIngredient;
   index: number;
@@ -64,6 +66,7 @@ function SortableIngredientItem({
   unitOptions?: Array<{ value: string; label: string }>;
   onIngredientChange: (index: number, field: keyof RecipeIngredient, value: any) => void;
   onRemove: (index: number) => void;
+  onAddNewIngredient: () => void;
 }) {
   const {
     attributes,
@@ -89,20 +92,31 @@ function SortableIngredientItem({
       <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
         <GripVertical className="h-5 w-5 text-muted-foreground" />
       </div>
-      <div className="flex-1">
-        <Combobox
-          options={ingredients?.map((ing) => ({
-            value: String(ing.id),
-            label: `${ing.name}${ing.nameEn ? ` (${ing.nameEn})` : ''}`,
-          })) || []}
-          value={String(ingredient.ingredientId || '')}
-          onValueChange={(value) =>
-            onIngredientChange(index, 'ingredientId', Number(value))
-          }
-          placeholder="选择原料"
-          searchPlaceholder="搜索原料..."
-          emptyText="未找到原料"
-        />
+      <div className="flex-1 flex gap-2">
+        <div className="flex-1">
+          <Combobox
+            options={ingredients?.map((ing) => ({
+              value: String(ing.id),
+              label: `${ing.name}${ing.nameEn ? ` (${ing.nameEn})` : ''}`,
+            })) || []}
+            value={String(ingredient.ingredientId || '')}
+            onValueChange={(value) =>
+              onIngredientChange(index, 'ingredientId', Number(value))
+            }
+            placeholder="选择原料"
+            searchPlaceholder="搜索原料..."
+            emptyText="未找到原料"
+          />
+        </div>
+        <Button
+          size="icon"
+          variant="outline"
+          onClick={onAddNewIngredient}
+          className="touch-feedback flex-shrink-0"
+          title="新增原料"
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
       </div>
       <div className="w-32">
         <Input
@@ -178,6 +192,8 @@ export default function RecipeEditor() {
   const [isSaving, setIsSaving] = useState(false);
   const initialDataRef = useRef<{ recipe: Partial<Recipe>; menuInfo: Partial<MenuInfo> } | null>(null);
   const [imageUrls, setImageUrls] = useState<string[]>([]); // 新增：用于存储图片预览URL
+  const [showAddIngredientDialog, setShowAddIngredientDialog] = useState(false);
+  const [pendingIngredientIndex, setPendingIngredientIndex] = useState<number | null>(null);
 
   const ingredients = useLiveQuery(() => db.ingredients.toArray(), []);
 
@@ -249,12 +265,45 @@ export default function RecipeEditor() {
   useEffect(() => {
     if (!initialDataRef.current || isSaving) return;
     
-    const hasChanges = 
-      JSON.stringify(recipe) !== JSON.stringify(initialDataRef.current.recipe) ||
-      JSON.stringify(menuInfo) !== JSON.stringify(initialDataRef.current.menuInfo);
+    // 创建一个排除自动计算字段和时间戳的比较函数
+    const getComparableRecipe = (r: Partial<Recipe>) => {
+      const { totalVolume, calculatedAbv, createdAt, updatedAt, ...rest } = r;
+      return rest;
+    };
     
-    setHasUnsavedChanges(hasChanges);
-  }, [recipe, menuInfo, isSaving]);
+    const getComparableMenuInfo = (m: Partial<MenuInfo>) => {
+      const { updatedAt, ...rest } = m;
+      return rest;
+    };
+    
+    // 检查是否为新建配方且没有实质性内容
+    const isNewRecipe = !id;
+    if (isNewRecipe) {
+      // 新建配方时，只有在有实质性内容时才认为有修改
+      const hasContent = 
+        (recipe.name && recipe.name.trim() !== '') || // 有配方名称
+        (recipe.ingredients && recipe.ingredients.length > 0 && recipe.ingredients.some(ing => ing.ingredientId !== 0)) || // 有有效配料
+        (recipe.steps && recipe.steps.length > 0 && recipe.steps.some(step => step.instruction.trim() !== '')) || // 有有效步骤
+        (recipe.imageIds && recipe.imageIds.length > 0) || // 有图片
+        (recipe.notes && recipe.notes.trim() !== '') || // 有备注
+        (menuInfo.menuNames && menuInfo.menuNames.some(mn => mn.name.trim() !== '')) || // 有菜单名称
+        (menuInfo.description && menuInfo.description.trim() !== ''); // 有描述
+      
+      setHasUnsavedChanges(hasContent);
+    } else {
+      // 编辑现有配方时，比较用户可编辑的字段
+      const currentRecipe = getComparableRecipe(recipe);
+      const initialRecipe = getComparableRecipe(initialDataRef.current.recipe);
+      const currentMenuInfo = getComparableMenuInfo(menuInfo);
+      const initialMenuInfo = getComparableMenuInfo(initialDataRef.current.menuInfo);
+      
+      const hasChanges = 
+        JSON.stringify(currentRecipe) !== JSON.stringify(initialRecipe) ||
+        JSON.stringify(currentMenuInfo) !== JSON.stringify(initialMenuInfo);
+      
+      setHasUnsavedChanges(hasChanges);
+    }
+  }, [recipe, menuInfo, isSaving, id]);
 
   // 自动计算容量和酒精度
   useEffect(() => {
@@ -303,6 +352,34 @@ export default function RecipeEditor() {
         { ingredientId: 0, quantity: 0, unit: 'ml' },
       ],
     });
+  };
+
+  // 打开新增原料对话框
+  const handleOpenAddIngredientDialog = (index: number) => {
+    setPendingIngredientIndex(index);
+    setShowAddIngredientDialog(true);
+  };
+
+  // 新增原料对话框关闭时的处理
+  const handleAddIngredientDialogClose = async (open: boolean) => {
+    if (!open && pendingIngredientIndex !== null) {
+      // 对话框关闭时，检查是否有新增的原料
+      const allIngredients = await db.ingredients.toArray();
+      const latestIngredient = allIngredients.sort((a, b) => 
+        (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)
+      )[0];
+      
+      // 如果最新原料是刚刚创建的（1秒内），自动填充到当前配方
+      if (latestIngredient && latestIngredient.createdAt) {
+        const timeDiff = Date.now() - latestIngredient.createdAt.getTime();
+        if (timeDiff < 1000) {
+          handleIngredientChange(pendingIngredientIndex, 'ingredientId', latestIngredient.id);
+        }
+      }
+      
+      setPendingIngredientIndex(null);
+    }
+    setShowAddIngredientDialog(open);
   };
 
   const handleRemoveIngredient = (index: number) => {
@@ -781,6 +858,7 @@ export default function RecipeEditor() {
                         unitOptions={configOptions.units}
                         onIngredientChange={handleIngredientChange}
                         onRemove={handleRemoveIngredient}
+                        onAddNewIngredient={() => handleOpenAddIngredientDialog(index)}
                       />
                     ))}
                   </SortableContext>
@@ -1006,6 +1084,12 @@ export default function RecipeEditor() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 新增原料对话框 */}
+      <AddIngredientDialog
+        open={showAddIngredientDialog}
+        onOpenChange={handleAddIngredientDialogClose}
+      />
     </div>
   );
 }
