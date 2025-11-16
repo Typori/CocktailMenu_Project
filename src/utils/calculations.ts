@@ -96,11 +96,14 @@ export async function calculateRecipeAbv(recipe: Recipe): Promise<number> {
   for (const recipeIngredient of recipe.ingredients) {
     const ingredient = await db.ingredients.get(recipeIngredient.ingredientId);
     if (ingredient) {
-      const volumeInMl = convertToMl(recipeIngredient.quantity, recipeIngredient.unit);
-      totalVolume += volumeInMl;
-      
-      if (ingredient.alcoholContent) {
-        totalAlcoholVolume += volumeInMl * (ingredient.alcoholContent / 100);
+      // 只计算容量类型的单位，与编辑界面保持一致
+      if (['ml', 'oz', 'cl'].includes(recipeIngredient.unit)) {
+        const volumeInMl = convertToMl(recipeIngredient.quantity, recipeIngredient.unit);
+        totalVolume += volumeInMl;
+        
+        if (ingredient.alcoholContent) {
+          totalAlcoholVolume += volumeInMl * (ingredient.alcoholContent / 100);
+        }
       }
     }
   }
@@ -114,8 +117,11 @@ export async function calculateRecipeVolume(recipe: Recipe): Promise<number> {
   let totalVolume = 0;
 
   for (const recipeIngredient of recipe.ingredients) {
-    const volumeInMl = convertToMl(recipeIngredient.quantity, recipeIngredient.unit);
-    totalVolume += volumeInMl;
+    // 只计算容量类型的单位，与酒精度计算保持一致
+    if (['ml', 'oz', 'cl'].includes(recipeIngredient.unit)) {
+      const volumeInMl = convertToMl(recipeIngredient.quantity, recipeIngredient.unit);
+      totalVolume += volumeInMl;
+    }
   }
 
   return Math.round(totalVolume * 10) / 10;

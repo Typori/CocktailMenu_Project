@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Settings as SettingsIcon, Palette, Database, Bell, Download, Upload, AlertCircle, CheckCircle2, RefreshCw, Wrench } from 'lucide-react';
 import { exportToJson, importFromJson, exportImageGallery, exportToJsonWithoutImages } from '@/utils/export';
 import { runFullDataRepair } from '@/utils/dataRepair';
+import { recalculateAllRecipes } from '@/utils/recalculateAllRecipes';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { db } from '@/db/database';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -33,6 +34,7 @@ export default function Settings() {
   const [isExportingImages, setIsExportingImages] = useState(false); // 新增图片导出状态
   const [isExportingWithoutImages, setIsExportingWithoutImages] = useState(false); // 新增不含图片导出状态
   const [isRepairing, setIsRepairing] = useState(false); // 新增数据修复状态
+  const [isRecalculating, setIsRecalculating] = useState(false); // 新增重新计算状态
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -96,6 +98,23 @@ export default function Settings() {
       setMessage({ type: 'error', text: '数据修复失败，请检查控制台。' });
     } finally {
       setIsRepairing(false);
+    }
+  };
+
+  const handleRecalculateRecipes = async () => {
+    if (!confirm('确定要重新计算所有配方的酒精度和成本吗？\\n\\n此操作将更新所有配方的计算字段，确保数据一致性。\\n')) {
+      return;
+    }
+    try {
+      setIsRecalculating(true);
+      setMessage(null);
+      await recalculateAllRecipes();
+      setMessage({ type: 'success', text: '所有配方重新计算完成！酒精度和成本已更新。' });
+    } catch (error) {
+      console.error('Recalculation failed:', error);
+      setMessage({ type: 'error', text: '重新计算失败，请检查控制台。' });
+    } finally {
+      setIsRecalculating(false);
     }
   };
 
@@ -285,6 +304,15 @@ export default function Settings() {
                 <Download className="h-4 w-4 mr-2" />
                 {isExportingImages ? '导出图片中...' : '导出图片库'}
               </Button>
+              <Button
+                onClick={handleRecalculateRecipes}
+                disabled={isRecalculating}
+                variant="outline"
+                className="flex-1"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                {isRecalculating ? '计算中...' : '重新计算配方'}
+              </Button>
             </div>
             
             <div className="flex gap-3 mt-4">
@@ -306,10 +334,20 @@ export default function Settings() {
                 <Wrench className="h-4 w-4 mr-2" />
                 {isRepairing ? '修复中...' : '运行数据修复'}
               </Button>
+              <Button
+                onClick={handleRecalculateRecipes}
+                disabled={isRecalculating}
+                variant="outline"
+                className="flex-1"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                {isRecalculating ? '计算中...' : '重新计算配方'}
+              </Button>
             </div>
             
             <p className="text-sm text-muted-foreground mt-2 pt-4 border-t">
-              如果导入数据后出现原料ID不匹配问题，或者图片显示异常，可以尝试运行数据修复工具。
+              如果导入数据后出现原料ID不匹配问题，或者图片显示异常，可以尝试运行数据修复工具。<br/>
+              如果配方的酒精度或成本显示不一致，可以使用重新计算功能更新所有配方的计算字段。
             </p>
             
             <input

@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/database';
-import { Recipe, RecipeIngredient, MenuInfo, Unit, GlassType, FlavorTag, DrinkDuration, ImageRecord } from '@/types';
+import { Recipe, RecipeIngredient, MenuInfo, Unit, GlassType, FlavorTag, DrinkDuration } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,7 +29,7 @@ import { ImagePreviewDialog } from '@/components/ImagePreviewDialog';
 import { Combobox } from '@/components/ui/combobox';
 import AddIngredientDialog from '@/components/AddIngredientDialog';
 import { ArrowLeft, Save, Plus, Trash2, X, Upload, ImageIcon, GripVertical } from 'lucide-react';
-import { updateRecipeCalculations, convertUnit, canConvertUnits, convertToMl } from '@/utils/calculations';
+import { updateRecipeCalculations, convertUnit, canConvertUnits, calculateProfitMargin } from '@/utils/calculations';
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 import { useAllSystemConfigOptions } from '@/hooks/useSystemConfig';
 import {
@@ -305,44 +305,13 @@ export default function RecipeEditor() {
     }
   }, [recipe, menuInfo, isSaving, id]);
 
-  // 自动计算容量和酒精度
-  useEffect(() => {
-    const calculateVolumeAndAbv = async () => {
-      if (!recipe.ingredients || recipe.ingredients.length === 0) {
-        setRecipe(prev => ({ ...prev, totalVolume: 0, calculatedAbv: 0 }));
-        return;
-      }
-
-      let totalVolumeMl = 0;
-      let totalAlcoholVolume = 0;
-
-      for (const recipeIng of recipe.ingredients) {
-        const ingredient = ingredients?.find(ing => ing.id === recipeIng.ingredientId);
-        if (!ingredient) continue;
-
-        // 只计算容量类型的单位
-        if (['ml', 'oz', 'cl'].includes(recipeIng.unit)) {
-          const volumeInMl = convertToMl(recipeIng.quantity, recipeIng.unit);
-          totalVolumeMl += volumeInMl;
-
-          // 计算酒精含量
-          if (ingredient.alcoholContent) {
-            totalAlcoholVolume += volumeInMl * (ingredient.alcoholContent / 100);
-          }
-        }
-      }
-
-      const abv = totalVolumeMl > 0 ? (totalAlcoholVolume / totalVolumeMl) * 100 : 0;
-
-      setRecipe(prev => ({
-        ...prev,
-        totalVolume: Math.round(totalVolumeMl * 10) / 10,
-        calculatedAbv: Math.round(abv * 10) / 10
-      }));
-    };
-
-    calculateVolumeAndAbv();
-  }, [recipe.ingredients, ingredients]);
+  // 移除实时计算，只在保存时通过updateRecipeCalculations计算
+  // useEffect(() => {
+  //   const calculateVolumeAndAbv = async () => {
+  //     // 实时计算逻辑已移除，改为只在保存时计算
+  //   };
+  //   calculateVolumeAndAbv();
+  // }, [recipe.ingredients, ingredients]);
 
   const handleAddIngredient = () => {
     setRecipe({
@@ -521,9 +490,20 @@ export default function RecipeEditor() {
 
       // 保存菜单信息
       const existingMenuInfo = await db.menuInfo.where('recipeId').equals(recipeId).first();
+      
+      // 先更新配方计算字段，获取最新成本
+      await updateRecipeCalculations(recipeId);
+      const updatedRecipe = await db.recipes.get(recipeId);
+      
+      // 计算利润率
+      const profitMargin = updatedRecipe?.calculatedCost && (menuInfo.price || 0) > 0 
+        ? calculateProfitMargin(updatedRecipe.calculatedCost, menuInfo.price || 0)
+        : 0;
+      
       const menuData: MenuInfo = {
         ...menuInfo as MenuInfo,
         recipeId,
+        profitMargin, // 保存计算好的利润率
         updatedAt: new Date(),
       };
 
@@ -533,7 +513,7 @@ export default function RecipeEditor() {
         await db.menuInfo.add(menuData);
       }
 
-      await updateRecipeCalculations(recipeId);
+      // 不需要再次调用updateRecipeCalculations，因为上面已经调用过了
       
       // 更新初始数据引用，标记为已保存
       initialDataRef.current = { recipe: recipeData, menuInfo: menuData };
