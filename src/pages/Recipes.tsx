@@ -17,7 +17,8 @@ import {
 } from '@/components/ui/select';
 import { Plus, Search, Star, Edit, Trash2, Copy, Filter, X, GripVertical, Check, BookOpen } from 'lucide-react';
 import { formatCurrency, getConfigLabelFromMap } from '@/utils/calculations';
-import { FlavorTag, DrinkDuration, GlassType } from '@/types';
+import { FlavorTag, DrinkDuration, GlassType, Ingredient } from '@/types';
+import { Combobox } from '@/components/ui/combobox';
 import { useAllConfigLabelMaps } from '@/hooks/useSystemConfig';
 import {
   DndContext,
@@ -206,6 +207,7 @@ export default function Recipes() {
     flavorTag?: FlavorTag;
     drinkDuration?: DrinkDuration;
     glassType?: GlassType;
+    ingredientIds?: number[];
   }>({});
   
   const recipes = useLiveQuery(async () => {
@@ -218,6 +220,7 @@ export default function Recipes() {
     });
   });
   const menuInfos = useLiveQuery(() => db.menuInfo.toArray());
+  const ingredients = useLiveQuery(() => db.ingredients.toArray());
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -295,7 +298,13 @@ export default function Recipes() {
         const matchesGlassType = !filters.glassType || 
           recipe.glassType === filters.glassType;
         
-        return matchesSearch && matchesFlavorTag && matchesDrinkDuration && matchesGlassType;
+        // 原料过滤 - 配方必须包含所有选中的原料
+        const matchesIngredients = !filters.ingredientIds || filters.ingredientIds.length === 0 ||
+          filters.ingredientIds.every(ingredientId => 
+            recipe.ingredients?.some(ing => ing.ingredientId === ingredientId)
+          );
+        
+        return matchesSearch && matchesFlavorTag && matchesDrinkDuration && matchesGlassType && matchesIngredients;
       });
 
   // 计算各筛选项的数量
@@ -311,7 +320,7 @@ export default function Recipes() {
     return recipesWithMenuInfo?.filter(r => r.glassType === glassType).length || 0;
   };
 
-  const hasActiveFilters = searchTerm !== '' || filters.flavorTag || filters.drinkDuration || filters.glassType;
+  const hasActiveFilters = searchTerm !== '' || filters.flavorTag || filters.drinkDuration || filters.glassType || (filters.ingredientIds && filters.ingredientIds.length > 0);
 
   const clearFilters = () => {
     setFilters({});
@@ -448,7 +457,7 @@ export default function Recipes() {
         {/* 筛选器 */}
         {!isSortMode && showFilters && (
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="pt-6 space-y-4">
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>风味标签</Label>
@@ -511,8 +520,67 @@ export default function Recipes() {
                   </Select>
                 </div>
               </div>
+
+              {/* 原料筛选 */}
+              <div className="space-y-2">
+                <Label>使用原料（可多选）</Label>
+                <div className="flex flex-wrap gap-2">
+                  {/* 已选原料标签 */}
+                  {filters.ingredientIds && filters.ingredientIds.length > 0 && (
+                    <>
+                      {filters.ingredientIds.map((ingredientId) => {
+                        const ingredient = ingredients?.find(ing => ing.id === ingredientId);
+                        return ingredient ? (
+                          <Badge key={ingredientId} variant="secondary" className="gap-1">
+                            {ingredient.name}
+                            <X
+                              className="h-3 w-3 cursor-pointer hover:text-destructive"
+                              onClick={() => {
+                                setFilters({
+                                  ...filters,
+                                  ingredientIds: filters.ingredientIds?.filter(id => id !== ingredientId)
+                                });
+                              }}
+                            />
+                          </Badge>
+                        ) : null;
+                      })}
+                    </>
+                  )}
+                  
+                  {/* 添加原料按钮 */}
+                  <div className="flex-1 min-w-[200px]">
+                    <Combobox
+                      options={ingredients?.map(ing => ({
+                        value: String(ing.id),
+                        label: `${ing.name}${ing.nameEn ? ` (${ing.nameEn})` : ''}`
+                      })) || []}
+                      value=""
+                      onValueChange={(value) => {
+                        const ingredientId = Number(value);
+                        const currentIds = filters.ingredientIds || [];
+                        if (!currentIds.includes(ingredientId)) {
+                          setFilters({
+                            ...filters,
+                            ingredientIds: [...currentIds, ingredientId]
+                          });
+                        }
+                      }}
+                      placeholder="添加原料..."
+                      searchPlaceholder="搜索原料..."
+                      emptyText="未找到原料"
+                    />
+                  </div>
+                </div>
+                {filters.ingredientIds && filters.ingredientIds.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    已选择 {filters.ingredientIds.length} 种原料 - 将筛选包含所有这些原料的配方
+                  </p>
+                )}
+              </div>
+
               {hasActiveFilters && (
-                <div className="mt-4 flex justify-end">
+                <div className="flex justify-end">
                   <Button
                     variant="ghost"
                     size="sm"

@@ -731,7 +731,7 @@ export default function VenueMenuTab({ venueId, activeTab, onTabChange }: VenueM
                   onToggleAvailable={handleToggleAvailable}
                   onRemove={handleRemoveRecipe}
                   onEditPrice={handleOpenPriceDialog}
-                  onViewRecipe={(recipeId) => navigate(`/recipes/${recipeId}`, { state: { from: '/venue-management' } })}
+                  onViewRecipe={(recipeId) => navigate(`/recipes/${recipeId}`, { state: { from: '/venues' } })}
                   flavorTagMap={flavorTagMap}
                 />
               ))}
