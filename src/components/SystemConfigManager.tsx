@@ -308,6 +308,13 @@ export function SystemConfigManager() {
       return;
     }
 
+    // 对于必填字段（如unit），不允许置空
+    const requiredTypes: SystemConfigType[] = ['unit'];
+    if (migrateTarget === '' && requiredTypes.includes(deletingConfig.configType)) {
+      alert('单位是必填字段，不能清空！请选择迁移到其他单位。');
+      return;
+    }
+
     // migrateTarget为空字符串表示置空，否则迁移到指定值
     const targetValue = migrateTarget === '' ? null : migrateTarget;
     
@@ -561,37 +568,59 @@ export function SystemConfigManager() {
             </div>
 
             {/* 分隔线 */}
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">或</span>
-              </div>
-            </div>
-
-            {/* 选项2: 直接删除并置空 */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-red-600 text-sm font-medium">
-                  2
+            {deletingConfig && !['unit'].includes(deletingConfig.configType) && (
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
                 </div>
-                <Label className="text-base font-medium text-destructive">直接删除并清空数据</Label>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">或</span>
+                </div>
               </div>
-              <div className="ml-8 space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  删除配置，并将所有使用该配置的数据字段置空
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setMigrateTarget('')}
-                  className={migrateTarget === '' ? 'border-red-500 bg-red-50' : ''}
-                >
-                  {migrateTarget === '' ? '✓ 已选择清空数据' : '选择此选项'}
-                </Button>
+            )}
+
+            {/* 选项2: 直接删除并置空 - 仅对非必填字段显示 */}
+            {deletingConfig && !['unit'].includes(deletingConfig.configType) && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-red-600 text-sm font-medium">
+                    2
+                  </div>
+                  <Label className="text-base font-medium text-destructive">直接删除并清空数据</Label>
+                </div>
+                <div className="ml-8 space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    删除配置，并将所有使用该配置的数据字段置空
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setMigrateTarget('')}
+                    className={migrateTarget === '' ? 'border-red-500 bg-red-50' : ''}
+                  >
+                    {migrateTarget === '' ? '✓ 已选择清空数据' : '选择此选项'}
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* 单位类型的特别提示 */}
+            {deletingConfig && deletingConfig.configType === 'unit' && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-4">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-amber-900">
+                      单位是必填字段
+                    </p>
+                    <p className="text-sm text-amber-700">
+                      由于单位是原料的必填字段，删除时必须迁移到其他单位，不能清空数据。
+                      请在上方选择一个目标单位来迁移现有数据。
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter className="gap-2">

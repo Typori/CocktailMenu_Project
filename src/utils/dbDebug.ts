@@ -114,7 +114,10 @@ export async function exportAllData() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `cocktail-menu-backup-${new Date().toISOString().split('T')[0]}.json`;
+    // 使用本地时间格式化日期
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    a.download = `cocktail-menu-backup-${dateStr}.json`;
     a.click();
     URL.revokeObjectURL(url);
     

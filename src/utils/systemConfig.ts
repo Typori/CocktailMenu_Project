@@ -65,10 +65,10 @@ export async function checkConfigUsage(config: SystemConfig): Promise<number> {
       break;
       
     case 'unit':
-      // 检查原料主数据的单位
-      count += await db.ingredients
-        .where('unit').equals(config.value)
-        .count();
+      // 检查原料主数据的单位（unit字段没有索引，需要用filter）
+      const allIngredients = await db.ingredients.toArray();
+      count += allIngredients.filter(ing => ing.unit === config.value).length;
+      
       // 检查配方中的配料单位
       const recipes = await db.recipes.toArray();
       recipes.forEach(recipe => {
@@ -144,6 +144,15 @@ export async function deleteConfig(
           usageCount,
           configType: config.configType,
           configLabel: config.label
+        };
+      }
+      
+      // 验证：某些类型不允许置空
+      const requiredTypes: SystemConfigType[] = ['unit'];
+      if (migrateToValue === null && requiredTypes.includes(config.configType)) {
+        return {
+          success: false,
+          message: `${config.label}是必填字段，不能清空数据。请选择迁移到其他配置。`
         };
       }
       
@@ -239,10 +248,16 @@ export async function migrateConfigValue(
       break;
       
     case 'unit':
-      // 更新原料主数据
-      await db.ingredients
-        .where('unit').equals(oldValue)
-        .modify({ unit: newValue || '' });
+      // 更新原料主数据（unit字段没有索引，需要遍历）
+      const ingredientsToUpdate = await db.ingredients.toArray();
+      for (const ing of ingredientsToUpdate) {
+        if (ing.unit === oldValue) {
+          await db.ingredients.update(ing.id!, { 
+            unit: newValue || '',
+            updatedAt: new Date()
+          });
+        }
+      }
       
       // 更新配方中的配料单位
       const recipes = await db.recipes.toArray();
