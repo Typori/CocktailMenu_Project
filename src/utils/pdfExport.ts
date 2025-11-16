@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Recipe, MenuInfo, Ingredient, VenueRecipe, Venue, SystemConfigType } from '@/types';
 import { formatCurrency } from './calculations';
+import { getConfigLabel } from './systemConfig';
 import { getPDFConfig } from './pdfConfig';
 import { db } from '@/db/database';
 
@@ -49,13 +50,13 @@ async function getRecipeImagesBase64(imageIds?: number[]): Promise<string[]> {
   }
 }
 
-function generateRecipeHTML(
+async function generateRecipeHTML(
   recipe: Recipe,
   menuInfo: MenuInfo | null,
   ingredients: Ingredient[],
   displayPrice?: number,
   imageBase64List?: string[]
-): string {
+): Promise<string> {
   const ingredientsList = recipe.ingredients?.map(ing => {
     const ingredient = ingredients.find(i => i.id === ing.ingredientId);
     return `<tr><td style="border: 1px solid #ddd; padding: 8px;">${ingredient?.name || '未知原料'}</td><td style="border: 1px solid #ddd; padding: 8px;">${ingredient?.nameEn || ''}</td><td style="border: 1px solid #ddd; padding: 8px;">${ing.quantity || 0} ${ing.unit || ''}</td></tr>`;
@@ -112,19 +113,77 @@ function generateRecipeHTML(
     <div style="margin-bottom: 15px;">
       <div style="font-size: 14px; font-weight: bold; margin-bottom: 8px;">详细信息</div>
       <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
-        <tr><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold; width: 20%;">调制技法</td><td style="border: 1px solid #ddd; padding: 8px;">${recipe.technique || '-'}</td></tr>
-        <tr style="background-color: #f9f9f9;"><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">装饰物</td><td style="border: 1px solid #ddd; padding: 8px;">${recipe.garnish || '-'}</td></tr>
-        <tr><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold; width: 20%;">饮用类型</td><td style="border: 1px solid #ddd; padding: 8px;">${menuInfo?.drinkDuration || '-'}</td></tr>
-        <tr style="background-color: #f9f9f9;"><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">风味标签</td><td style="border: 1px solid #ddd; padding: 8px;">${menuInfo?.flavorTags && menuInfo.flavorTags.length > 0 ? menuInfo.flavorTags.join(', ') : '-'}</td></tr>
-        <tr><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold; width: 20%;">颜色</td><td style="border: 1px solid #ddd; padding: 8px;">${menuInfo?.color || '-'}</td></tr>
-        <tr style="background-color: #f9f9f9;"><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">使用杯型</td><td style="border: 1px solid #ddd; padding: 8px;">${recipe.glassType || '-'}</td></tr>
-        <tr><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold; width: 20%;">配方标签</td><td style="border: 1px solid #ddd; padding: 8px;">${recipe.tags && recipe.tags.length > 0 ? recipe.tags.join(', ') : '-'}</td></tr>
-        ${displayPrice ? `<tr style="background-color: #f9f9f9;"><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">建议售价</td><td style="border: 1px solid #ddd; padding: 8px;">${formatCurrency(displayPrice)}</td></tr>` : ''}
-        <tr ${displayPrice ? '' : 'style="background-color: #f9f9f9;"'}><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">成本计算</td><td style="border: 1px solid #ddd; padding: 8px;">${formatCurrency(recipe.calculatedCost || 0)}</td></tr>
-        ${menuInfo?.profitMargin ? `<tr ${!displayPrice ? '' : 'style="background-color: #f9f9f9;"'}><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">利润率</td><td style="border: 1px solid #ddd; padding: 8px;">${menuInfo.profitMargin}%</td></tr>` : ''}
-        ${menuInfo?.description ? `<tr ${displayPrice && !menuInfo.profitMargin ? 'style="background-color: #f9f9f9;"' : ''}><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">酒款描述</td><td style="border: 1px solid #ddd; padding: 8px;">${menuInfo.description}</td></tr>` : ''}
-        ${menuInfo?.descriptionEn ? `<tr ${displayPrice && !menuInfo.profitMargin ? '' : 'style="background-color: #f9f9f9;"'}><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">英文描述</td><td style="border: 1px solid '#ddd; padding: 8px;">${menuInfo.descriptionEn}</td></tr>` : ''}
-        ${recipe.notes ? `<tr ${!displayPrice && menuInfo.profitMargin && !menuInfo.description && !menuInfo.descriptionEn ? '' : 'style="background-color: #f9f9f9;"'}><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">备注</td><td style="border: 1px solid #ddd; padding: 8px;">${recipe.notes}</td></tr>` : ''}
+        <!-- 第一行：调制技法、饮用类型、使用杯型 -->
+        <tr style="background-color: #f5f5f5;">
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">调制技法</th>
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">饮用类型</th>
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">使用杯型</th>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #ddd; padding: 8px;">${recipe.technique ? await getConfigLabel('technique', recipe.technique) : '-'}</td>
+          <td style="border: 1px solid #ddd; padding: 8px;">${menuInfo?.drinkDuration ? await getConfigLabel('drinkDuration', menuInfo.drinkDuration) : '-'}</td>
+          <td style="border: 1px solid #ddd; padding: 8px;">${recipe.glassType ? await getConfigLabel('glassType', recipe.glassType) : '-'}</td>
+        </tr>
+        <!-- 第二行：风味标签、颜色 -->
+        <tr style="background-color: #f5f5f5;">
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">风味标签</th>
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;" colspan="2">颜色</th>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #ddd; padding: 8px;">${menuInfo?.flavorTags && menuInfo.flavorTags.length > 0 ? (await Promise.all(menuInfo.flavorTags.map(tag => getConfigLabel('flavorTag', tag)))).join(', ') : '-'}</td>
+          <td style="border: 1px solid #ddd; padding: 8px;" colspan="2">${menuInfo?.color || '-'}</td>
+        </tr>
+        <!-- 第三行：建议售价、成本计算、利润率（如果有） -->
+        ${displayPrice || menuInfo?.profitMargin ? `
+        <tr style="background-color: #f5f5f5;">
+          ${displayPrice ? '<th style="border: 1px solid #ddd; padding: 8px; text-align: left;">建议售价</th>' : ''}
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">成本计算</th>
+          ${menuInfo?.profitMargin ? '<th style="border: 1px solid #ddd; padding: 8px; text-align: left;">利润率</th>' : ''}
+          ${!displayPrice && !menuInfo?.profitMargin ? '<th style="border: 1px solid #ddd; padding: 8px; text-align: left;" colspan="2"></th>' : ''}
+          ${displayPrice && !menuInfo?.profitMargin ? '<th style="border: 1px solid #ddd; padding: 8px; text-align: left;"></th>' : ''}
+        </tr>
+        <tr>
+          ${displayPrice ? `<td style="border: 1px solid #ddd; padding: 8px;">${formatCurrency(displayPrice)}</td>` : ''}
+          <td style="border: 1px solid #ddd; padding: 8px;">${formatCurrency(recipe.calculatedCost || 0)}</td>
+          ${menuInfo?.profitMargin ? `<td style="border: 1px solid #ddd; padding: 8px;">${menuInfo.profitMargin}%</td>` : ''}
+          ${!displayPrice && !menuInfo?.profitMargin ? '<td style="border: 1px solid #ddd; padding: 8px;" colspan="2"></td>' : ''}
+          ${displayPrice && !menuInfo?.profitMargin ? '<td style="border: 1px solid #ddd; padding: 8px;"></td>' : ''}
+        </tr>
+        ` : `
+        <tr style="background-color: #f5f5f5;">
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;" colspan="3">成本计算</th>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #ddd; padding: 8px;" colspan="3">${formatCurrency(recipe.calculatedCost || 0)}</td>
+        </tr>
+        `}
+        <!-- 酒款描述（如果有） -->
+        ${menuInfo?.description ? `
+        <tr style="background-color: #f5f5f5;">
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;" colspan="3">酒款描述</th>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #ddd; padding: 8px;" colspan="3">${menuInfo.description}</td>
+        </tr>
+        ` : ''}
+        <!-- 英文描述（如果有） -->
+        ${menuInfo?.descriptionEn ? `
+        <tr style="background-color: #f5f5f5;">
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;" colspan="3">英文描述</th>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #ddd; padding: 8px;" colspan="3">${menuInfo.descriptionEn}</td>
+        </tr>
+        ` : ''}
+        <!-- 备注（如果有） -->
+        ${recipe.notes ? `
+        <tr style="background-color: #f5f5f5;">
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;" colspan="3">备注</th>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #ddd; padding: 8px;" colspan="3">${recipe.notes}</td>
+        </tr>
+        ` : ''}
       </table>
     </div>
   `;
@@ -249,9 +308,9 @@ export async function exportRecipeToPDF(
     // 获取图片base64数据
     const imageBase64List = await getRecipeImagesBase64(recipe.imageIds);
     
-    const html = generateRecipeHTML(recipe, menuInfo, ingredients, menuInfo?.price, imageBase64List);
+    const html = await generateRecipeHTML(recipe, menuInfo, ingredients, menuInfo?.price, imageBase64List);
     await renderHTMLToPDF(pdf, html, pdfWidth, pdfHeight);
-    const fileName = `${(recipe.name || '未命名配方').replace(/[^a-zA-Z0-9\\u4e00-\\u9fa5]/g, '_')}.pdf`;
+    const fileName = `${(recipe.name || '未命名配方').replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')}.pdf`;
     pdf.save(fileName);
   } catch (error) {
     console.error('Failed to export PDF:', error);
@@ -287,7 +346,7 @@ export async function exportVenueMenuToPDF(
       // 获取图片base64数据
       const imageBase64List = await getRecipeImagesBase64(recipe.imageIds);
       
-      const html = generateRecipeHTML(recipe, recipe.menuInfo, ingredients, displayPrice, imageBase64List);
+      const html = await generateRecipeHTML(recipe, recipe.menuInfo, ingredients, displayPrice, imageBase64List);
       await renderHTMLToPDF(pdf, html, pdfWidth, pdfHeight, i > 0);
     }
 
@@ -304,10 +363,39 @@ export async function exportVenueMenuToPDF(
       .filter(ing => ing !== undefined)
       .sort((a, b) => a!.name.localeCompare(b!.name, 'zh-CN'));
 
-    const summaryHTML = `<div style="text-align: center; margin-bottom: 20px;"><div style="font-size: 24px; font-weight: bold;">原料汇总清单</div></div><div style="column-count: 2; column-gap: 30px;">${sortedIngredients.map(ingredient => `<div style="margin-bottom: 10px; word-break: break-word;">• ${ingredient!.name}${ingredient!.nameEn ? ` (${ingredient!.nameEn})` : ''}</div>`).join('')}</div>`;
+    // 按类别分组原料
+    const ingredientsByCategory = new Map<string, Ingredient[]>();
+    sortedIngredients.forEach(ingredient => {
+      const category = ingredient!.category || 'other';
+      if (!ingredientsByCategory.has(category)) {
+        ingredientsByCategory.set(category, []);
+      }
+      ingredientsByCategory.get(category)!.push(ingredient!);
+    });
+
+    // 获取类别的中文标签并排序
+    const categoryEntries = await Promise.all(
+      Array.from(ingredientsByCategory.entries()).map(async ([category, ings]) => ({
+        category,
+        label: await getConfigLabel('spiritType', category),
+        ingredients: ings
+      }))
+    );
+    
+    // 按类别标签排序
+    categoryEntries.sort((a, b) => a.label.localeCompare(b.label, 'zh-CN'));
+
+    const summaryHTML = `<div style="text-align: center; margin-bottom: 20px;"><div style="font-size: 24px; font-weight: bold;">原料汇总清单</div></div>${categoryEntries.map(({ label, ingredients }) => `
+      <div style="margin-bottom: 20px;">
+        <div style="font-size: 16px; font-weight: bold; margin-bottom: 10px; color: #333; border-bottom: 2px solid #666; padding-bottom: 5px;">${label}</div>
+        <div style="column-count: 2; column-gap: 30px;">
+          ${ingredients.map(ingredient => `<div style="margin-bottom: 8px; word-break: break-word;">• ${ingredient.name}${ingredient.nameEn ? ` (${ingredient.nameEn})` : ''}</div>`).join('')}
+        </div>
+      </div>
+    `).join('')}`;
     await renderHTMLToPDF(pdf, summaryHTML, pdfWidth, pdfHeight, true);
 
-    const fileName = `${(venue.name || '未命名店面').replace(/[^a-zA-Z0-9\\u4e00-\\u9fa5]/g, '_')}_酒单.pdf`;
+    const fileName = `${(venue.name || '未命名店面').replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')}_酒单.pdf`;
     pdf.save(fileName);
   } catch (error) {
     console.error('Failed to export PDF:', error);

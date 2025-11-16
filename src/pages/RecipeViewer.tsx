@@ -24,7 +24,7 @@ export default function RecipeViewer() {
   const ingredients = useLiveQuery(() => db.ingredients.toArray(), []);
   
   // 获取配置标签映射
-  const { flavorTagMap, glassTypeMap, drinkDurationMap } = useAllConfigLabelMaps();
+  const { flavorTagMap, glassTypeMap, drinkDurationMap, techniqueMap } = useAllConfigLabelMaps();
 
   // 处理返回按钮 - 返回上一页
   const handleGoBack = () => {
@@ -330,6 +330,14 @@ export default function RecipeViewer() {
             <CardTitle>详细信息</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* 调制技法 */}
+            {recipe.technique && (
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">调制技法</div>
+                <div className="text-base">{getConfigLabelFromMap(techniqueMap, recipe.technique)}</div>
+              </div>
+            )}
+
             {/* 风味标签 */}
             {menuInfo?.flavorTags && menuInfo.flavorTags.length > 0 && (
               <div className="space-y-2">

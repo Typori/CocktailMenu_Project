@@ -236,8 +236,7 @@ export default function RecipeEditor() {
     steps: [],
     glassType: 'rocks',
     notes: '',
-    tags: [],
-    imageIds: [], // 修改为 imageIds
+        imageIds: [], // 修改为 imageIds
   });
   const [menuInfo, setMenuInfo] = useState<Partial<MenuInfo>>({
     menuNames: [{ id: '1', name: '', isDefault: true }],
@@ -989,6 +988,26 @@ export default function RecipeEditor() {
             <CardTitle>详细信息</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* 调制技法 */}
+            <div className="space-y-2">
+              <Label htmlFor="technique">调制技法</Label>
+              <Select
+                value={recipe.technique || ''}
+                onValueChange={(value) => setRecipe({ ...recipe, technique: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="选择调制技法" />
+                </SelectTrigger>
+                <SelectContent>
+                  {configOptions.techniques?.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  )) || <SelectItem value="loading" disabled>加载中...</SelectItem>}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* 风味标签 */}
             <div className="space-y-2">
               <Label>风味标签</Label>
