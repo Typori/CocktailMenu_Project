@@ -23,7 +23,13 @@
 
 ### 一键启动（推荐）
 
-双击项目根目录下的 **`启动服务器.command`** 文件即可！
+#### Windows 用户
+- 双击 **`start.bat`** 文件即可启动！
+- 或者运行 `scripts/launchers/start-windows.ps1` (PowerShell版本，界面更美观)
+
+#### macOS/Linux 用户
+- 运行 `scripts/launchers/start-macos.sh`
+- 首次使用需要添加执行权限：`chmod +x scripts/launchers/start-macos.sh`
 
 ### 使用命令行
 

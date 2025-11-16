@@ -1,12 +1,11 @@
 #!/bin/bash
 
-# 鸡尾酒菜单项目启动脚本
-# 作用：自动切换到项目目录并启动开发服务器
+# =========================================
+# 鸡尾酒菜单项目启动脚本 (macOS/Linux)
+# =========================================
 
-# 获取脚本所在目录（项目根目录）
-PROJECT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
-# 切换到项目目录
+# 获取脚本所在目录的项目根目录
+PROJECT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../.." && pwd )"
 cd "$PROJECT_DIR" || exit 1
 
 echo "========================================="
@@ -16,15 +15,30 @@ echo ""
 echo "📁 项目目录: $PROJECT_DIR"
 echo ""
 
-# 检查 node_modules 是否存在
+# 检查 Node.js 环境
+if ! command -v node &> /dev/null; then
+    echo "❌ 错误: 未找到Node.js"
+    echo "请先安装Node.js: https://nodejs.org/"
+    exit 1
+fi
+
+echo "✅ Node.js版本: $(node -v)"
+echo "✅ npm版本: $(npm -v)"
+echo ""
+
+# 检查并安装依赖
 if [ ! -d "node_modules" ]; then
     echo "⚠️  未检测到 node_modules 目录"
     echo "🔧 正在安装依赖..."
     npm install
+    if [ $? -ne 0 ]; then
+        echo "❌ 依赖安装失败"
+        exit 1
+    fi
     echo ""
 fi
 
-# 检查是否有 package-lock.json 更新
+# 检查依赖更新
 if [ "package.json" -nt "node_modules/.package-lock.json" ] 2>/dev/null; then
     echo "📦 检测到依赖更新，正在重新安装..."
     npm install
@@ -41,8 +55,8 @@ echo ""
 echo "========================================="
 echo ""
 
-# 在后台等待3秒后自动打开浏览器
-(sleep 3 && open http://localhost:5173) &
+# 延迟打开浏览器
+(sleep 5 && open http://localhost:5173) &
 
 # 启动开发服务器
 npm run dev

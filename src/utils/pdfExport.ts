@@ -1,229 +1,267 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Recipe, MenuInfo, Ingredient, VenueRecipe, Venue } from '@/types';
-import { formatCurrency, getFlavorTagLabel, getDrinkDurationLabel, getGlassTypeLabel } from './calculations';
+import { formatCurrency } from './calculations';
+import { getPDFConfig } from './pdfConfig';
+import { db } from '@/db/database';
 
 /**
- * 创建HTML内容用于PDF导出
+ * 将Blob转换为base64
  */
-function createRecipeHTML(
+async function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Failed to convert blob to base64'));
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * 获取配方的图片base64数据
+ */
+async function getRecipeImagesBase64(imageIds?: number[]): Promise<string[]> {
+  if (!imageIds || imageIds.length === 0) {
+    return [];
+  }
+
+  try {
+    const images = await db.imageStore.bulkGet(imageIds);
+    const base64List: string[] = [];
+
+    for (const img of images) {
+      if (img && img.data) {
+        const base64 = await blobToBase64(img.data);
+        base64List.push(base64);
+      }
+    }
+
+    return base64List;
+  } catch (error) {
+    console.error('Failed to get recipe images:', error);
+    return [];
+  }
+}
+
+function generateRecipeHTML(
   recipe: Recipe,
   menuInfo: MenuInfo | null,
-  ingredients: Ingredient[]
+  ingredients: Ingredient[],
+  displayPrice?: number,
+  imageBase64List?: string[]
 ): string {
-  const basicInfo = [
-    `<div><strong>杯型：</strong>${getGlassTypeLabel(recipe.glassType)}</div>`,
-    `<div><strong>容量：</strong>${recipe.totalVolume || 0} ml</div>`,
-    `<div><strong>酒精度：</strong>${recipe.calculatedAbv || 0}%</div>`,
-    `<div><strong>成本：</strong>${formatCurrency(recipe.calculatedCost || 0)}</div>`,
-  ];
+  const ingredientsList = recipe.ingredients?.map(ing => {
+    const ingredient = ingredients.find(i => i.id === ing.ingredientId);
+    return `<tr><td style="border: 1px solid #ddd; padding: 8px;">${ingredient?.name || '未知原料'}</td><td style="border: 1px solid #ddd; padding: 8px;">${ingredient?.nameEn || ''}</td><td style="border: 1px solid #ddd; padding: 8px;">${ing.quantity || 0} ${ing.unit || ''}</td></tr>`;
+  }).join('') || '<tr><td colspan="3" style="border: 1px solid #ddd; padding: 8px; text-align: center; color: #999;">暂无配料信息</td></tr>';
 
-  if (menuInfo?.drinkDuration) {
-    basicInfo.push(`<div><strong>饮用时长：</strong>${getDrinkDurationLabel(menuInfo.drinkDuration)}</div>`);
-  }
-
-  if (menuInfo?.price !== undefined && menuInfo.price > 0) {
-    basicInfo.push(`<div><strong>售价：</strong>${formatCurrency(menuInfo.price)}</div>`);
-  }
-
-  const flavorTags = menuInfo?.flavorTags && menuInfo.flavorTags.length > 0
-    ? `<div style="margin-top: 10px;"><strong>风味标签：</strong>${menuInfo.flavorTags.map(tag => getFlavorTagLabel(tag)).join(', ')}</div>`
-    : '';
-
-  const description = menuInfo?.description
-    ? `<div style="margin-top: 20px;">
-         <h3 style="font-size: 18px; font-weight: bold; margin-bottom: 10px;">酒款描述</h3>
-         <p style="line-height: 1.6;">${menuInfo.description}</p>
-       </div>`
-    : '';
-
-  const ingredientsList = recipe.ingredients && recipe.ingredients.length > 0
-    ? recipe.ingredients.map(ing => {
-        const ingredient = ingredients.find(i => i.id === ing.ingredientId);
-        const name = ingredient?.name || '未知';
-        const nameEn = ingredient?.nameEn || '';
-        const quantity = `${ing.quantity} ${ing.unit}`;
-        const abv = ingredient?.alcoholContent ? ` (酒精度 ${ingredient.alcoholContent}%)` : '';
-        return `<li style="margin-bottom: 8px;">
-          ${name}${nameEn ? ` (${nameEn})` : ''}: ${quantity}${abv}
-        </li>`;
-      }).join('')
-    : '<li>暂无配料</li>';
-
-  const stepsList = recipe.steps && recipe.steps.length > 0
-    ? recipe.steps.map(step => 
-        `<div style="margin-bottom: 12px; line-height: 1.6; display: flex;">
-          <span style="font-weight: bold; margin-right: 8px; min-width: 24px;">${step.stepNumber}.</span>
-          <span style="flex: 1;">${step.instruction}</span>
-        </div>`
-      ).join('')
-    : '';
-
-  const stepsSection = stepsList
-    ? `<div style="margin-top: 20px;">
-         <h3 style="font-size: 18px; font-weight: bold; margin-bottom: 10px;">制作步骤</h3>
-         <div style="padding-left: 10px;">${stepsList}</div>
-       </div>`
-    : '';
-
-  const notesSection = recipe.notes
-    ? `<div style="margin-top: 20px;">
-         <h3 style="font-size: 18px; font-weight: bold; margin-bottom: 10px;">备注</h3>
-         <p style="line-height: 1.6;">${recipe.notes}</p>
-       </div>`
-    : '';
-
-  const imageSection = recipe.images && recipe.images.length > 0
-    ? `<div style="text-align: center; margin: 20px 0;">
-         <img src="${recipe.images[0]}" alt="${recipe.name}" 
-              style="max-width: 300px; max-height: 300px; border-radius: 8px; display: inline-block;" 
-              crossorigin="anonymous" />
-       </div>`
-    : '';
+  const stepsList = recipe.steps?.map(step => `<tr><td style="border: 1px solid #ddd; padding: 8px; vertical-align: top;">${step.stepNumber || '1'}</td><td style="border: 1px solid #ddd; padding: 8px;">${step.instruction || '-'}</td></tr>`).join('') || '';
 
   return `
-    <div style="font-family: Arial, sans-serif; padding: 40px; max-width: 800px; background: white;">
-      <h1 style="font-size: 32px; font-weight: bold; text-align: center; margin-bottom: 10px;">
-        ${recipe.name}
-      </h1>
-      ${recipe.nameEn ? `<p style="font-size: 18px; font-style: italic; text-align: center; color: #666; margin-bottom: 20px;">${recipe.nameEn}</p>` : ''}
-      
-      ${imageSection}
-      
-      <div style="border-top: 2px solid #333; margin: 20px 0;"></div>
-      
-      <div style="margin-top: 20px;">
-        <h3 style="font-size: 18px; font-weight: bold; margin-bottom: 10px;">基本信息</h3>
-        <div style="line-height: 1.8;">
-          ${basicInfo.join('')}
-          ${flavorTags}
+    <div style="text-align: center; margin-bottom: 20px;">
+      <div style="font-size: 24px; font-weight: bold; margin-bottom: 5px;">${recipe.name || '未命名配方'}</div>
+      ${recipe.nameEn ? `<div style="font-size: 14px; color: #666;">${recipe.nameEn}</div>` : ''}
+    </div>
+
+    ${imageBase64List && imageBase64List.length > 0 ? `
+      <div style="margin-bottom: 15px;">
+        <div style="display: flex; gap: 12px; overflow-x: auto; padding: 8px 0;">
+          ${imageBase64List.map(imgBase64 => `
+            <div style="flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 180px; height: 240px; background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; overflow: hidden;">
+              <img src="${imgBase64}" style="max-width: 100%; max-height: 100%; object-fit: contain;" />
+            </div>
+          `).join('')}
         </div>
       </div>
-      
-      ${description}
-      
-      <div style="margin-top: 20px;">
-        <h3 style="font-size: 18px; font-weight: bold; margin-bottom: 10px;">配料清单</h3>
-        <ul style="padding-left: 20px; line-height: 1.8;">
-          ${ingredientsList}
-        </ul>
-      </div>
-      
-      ${stepsSection}
-      ${notesSection}
-      
-      <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ccc; text-align: center; color: #666; font-size: 12px;">
-        导出日期：${new Date().toLocaleDateString('zh-CN')}
-      </div>
+    ` : ''}
+    <div style="margin-bottom: 15px;">
+      <div style="font-size: 14px; font-weight: bold; margin-bottom: 8px;">基本信息</div>
+      <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
+        <tr style="background-color: #f5f5f5;">
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">中文名</th>
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">英文名</th>
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">容量</th>
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">酒精度</th>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #ddd; padding: 8px;">${recipe.name || '-'}</td>
+          <td style="border: 1px solid #ddd; padding: 8px;">${recipe.nameEn || '-'}</td>
+          <td style="border: 1px solid #ddd; padding: 8px;">${recipe.totalVolume || 0} ml</td>
+          <td style="border: 1px solid #ddd; padding: 8px;">${recipe.calculatedAbv || 0}%</td>
+        </tr>
+      </table>
+    </div>
+    <div style="margin-bottom: 15px;">
+      <div style="font-size: 14px; font-weight: bold; margin-bottom: 8px;">配料列表</div>
+      <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
+        <tr style="background-color: #f5f5f5;">
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">原料</th>
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">英文</th>
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">用量</th>
+        </tr>
+        ${ingredientsList}
+      </table>
+    </div>
+    ${stepsList ? `<div style="margin-bottom: 15px;"><div style="font-size: 14px; font-weight: bold; margin-bottom: 8px;">制作步骤</div><table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;"><tr style="background-color: #f5f5f5;"><th style="border: 1px solid #ddd; padding: 8px; text-align: left; width: 50px;">步骤</th><th style="border: 1px solid #ddd; padding: 8px; text-align: left;">操作说明</th></tr>${stepsList}</table></div>` : ''}
+    <div style="margin-bottom: 15px;">
+      <div style="font-size: 14px; font-weight: bold; margin-bottom: 8px;">详细信息</div>
+      <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
+        <tr><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold; width: 20%;">杯型</td><td style="border: 1px solid #ddd; padding: 8px;">${recipe.glassType || '-'}</td></tr>
+        <tr style="background-color: #f9f9f9;"><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">颜色</td><td style="border: 1px solid #ddd; padding: 8px;">${menuInfo?.color || '-'}</td></tr>
+        ${displayPrice ? `<tr><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">售价</td><td style="border: 1px solid #ddd; padding: 8px;">${formatCurrency(displayPrice)}</td></tr>` : ''}
+        <tr style="background-color: #f9f9f9;"><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">成本</td><td style="border: 1px solid #ddd; padding: 8px;">${formatCurrency(recipe.calculatedCost || 0)}</td></tr>
+        ${menuInfo?.description ? `<tr><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">描述</td><td style="border: 1px solid #ddd; padding: 8px;">${menuInfo.description}</td></tr>` : ''}
+        ${menuInfo?.descriptionEn ? `<tr style="background-color: #f9f9f9;"><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">英文描述</td><td style="border: 1px solid #ddd; padding: 8px;">${menuInfo.descriptionEn}</td></tr>` : ''}
+        ${recipe.technique ? `<tr><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">调制技法</td><td style="border: 1px solid #ddd; padding: 8px;">${recipe.technique}</td></tr>` : ''}
+        ${recipe.garnish ? `<tr style="background-color: #f9f9f9;"><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">装饰物</td><td style="border: 1px solid #ddd; padding: 8px;">${recipe.garnish}</td></tr>` : ''}
+        ${menuInfo?.flavorTags && menuInfo.flavorTags.length > 0 ? `<tr><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">风味标签</td><td style="border: 1px solid #ddd; padding: 8px;">${menuInfo.flavorTags.join(', ')}</td></tr>` : ''}
+        ${menuInfo?.drinkDuration ? `<tr style="background-color: #f9f9f9;"><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">饮用时长</td><td style="border: 1px solid #ddd; padding: 8px;">${menuInfo.drinkDuration}</td></tr>` : ''}
+        ${menuInfo?.profitMargin ? `<tr><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">利润率</td><td style="border: 1px solid #ddd; padding: 8px;">${menuInfo.profitMargin}%</td></tr>` : ''}
+        ${recipe.tags && recipe.tags.length > 0 ? `<tr style="background-color: #f9f9f9;"><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">配方标签</td><td style="border: 1px solid #ddd; padding: 8px;">${recipe.tags.join(', ')}</td></tr>` : ''}
+        ${recipe.notes ? `<tr><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">备注</td><td style="border: 1px solid #ddd; padding: 8px;">${recipe.notes}</td></tr>` : ''}
+      </table>
     </div>
   `;
 }
 
-/**
- * 导出单个配方为PDF
- */
+async function renderHTMLToPDF(
+  pdf: jsPDF,
+  html: string,
+  pdfWidth: number,
+  pdfHeight: number,
+  addNewPage: boolean = false
+): Promise<void> {
+  const config = getPDFConfig();
+  const totalPdfWidth = pdfWidth; // A4 width in mm
+  const totalPdfHeight = pdfHeight; // A4 height in mm
+  const margin = config.margin; // 获取边距 (mm)
+
+  // 计算内容区域的宽度和高度
+  const pageContentWidth = totalPdfWidth - 2 * margin;
+  const pageContentHeight = totalPdfHeight - 2 * margin;
+
+  const container = document.createElement('div');
+  container.style.position = 'absolute';
+  container.style.left = '-9999px';
+  container.style.top = '-9999px';
+  container.style.width = `${pageContentWidth}mm`; // html2canvas 渲染的宽度应为内容宽度
+  container.style.backgroundColor = config.backgroundColor;
+  // container.style.padding = `${margin}mm`; // 移除 padding，由 jspdf 处理
+  container.style.fontFamily = '"Noto Sans SC", "Microsoft YaHei", Arial, sans-serif';
+  container.style.fontSize = '12px';
+  container.style.lineHeight = '1.6';
+  container.style.color = '#000000';
+  container.innerHTML = html;
+  document.body.appendChild(container);
+
+  try {
+    // 等待指定的渲染延迟
+    if (config.renderDelay > 0) {
+      await new Promise(resolve => setTimeout(resolve, config.renderDelay));
+    }
+
+    // 使用配置中的参数进行渲染
+    const canvas = await html2canvas(container, {
+      scale: config.canvasScale,
+      useCORS: config.useCORS,
+      logging: false,
+      backgroundColor: config.backgroundColor,
+      windowWidth: pageContentWidth * (config.canvasScale || 1), // 使用内容宽度
+      windowHeight: Math.round(pageContentWidth * (config.canvasScale || 1) * 1.4), // 根据内容宽度调整
+      allowTaint: config.allowTaint,
+      removeContainer: false,
+      imageTimeout: config.imageTimeout
+    });
+
+    // 根据配置选择图片格式和质量
+    const mimeType = config.imageFormat === 'png' ? 'image/png' : 'image/jpeg';
+    const imgData = canvas.toDataURL(mimeType, config.imageQuality);
+
+    // 计算实际图片在 PDF 中的尺寸
+    const imgWidth = pageContentWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    let yPosition = 0; // 图像在 canvas 上的当前Y坐标
+    let pdfPageY = 0; // 图像在 PDF 页面上的当前Y坐标
+    let isFirstPage = true;
+
+    while (yPosition < imgHeight) {
+      if (!isFirstPage || addNewPage) {
+        pdf.addPage();
+        pdfPageY = 0; // 新页面从顶部开始
+      }
+      isFirstPage = false;
+
+      // 计算当前页可以绘制的高度
+      const currentPageRemainingHeight = pageContentHeight - pdfPageY;
+      const pageDrawHeight = Math.min(imgHeight - yPosition, currentPageRemainingHeight);
+
+      if (pageDrawHeight <= 0) {
+        // 如果当前页已经没有空间，但图像还没画完，就添加新页
+        pdf.addPage();
+        pdfPageY = 0;
+        continue;
+      }
+      
+      const sourceY = (yPosition / imgHeight) * canvas.height;
+      const sourceHeight = (pageDrawHeight / imgHeight) * canvas.height;
+      
+      const pageCanvas = document.createElement('canvas');
+      pageCanvas.width = canvas.width;
+      pageCanvas.height = sourceHeight;
+      const ctx = pageCanvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight);
+        const pageImgData = pageCanvas.toDataURL(mimeType, config.imageQuality);
+        const imgFormat = config.imageFormat === 'png' ? 'PNG' : 'JPEG';
+        
+        pdf.addImage(pageImgData, imgFormat, margin, margin + pdfPageY, imgWidth, pageDrawHeight); // 考虑边距和当前页面Y偏移
+      }
+
+      yPosition += pageDrawHeight;
+      pdfPageY += pageDrawHeight; // 更新 PDF 页面上的Y坐标
+    }
+  } finally {
+    document.body.removeChild(container);
+  }
+}
+
 export async function exportRecipeToPDF(
   recipe: Recipe,
   menuInfo: MenuInfo | null,
   ingredients: Ingredient[]
 ) {
   try {
-    // 创建临时容器
-    const container = document.createElement('div');
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
-    container.style.top = '0';
-    container.innerHTML = createRecipeHTML(recipe, menuInfo, ingredients);
-    document.body.appendChild(container);
-
-    // 等待图片加载
-    const images = container.querySelectorAll('img');
-    console.log('Found images:', images.length);
-    
-    await Promise.all(
-      Array.from(images).map((img, index) => {
-        return new Promise((resolve) => {
-          const imgElement = img as HTMLImageElement;
-          console.log(`Image ${index}:`, imgElement.src, 'complete:', imgElement.complete);
-          
-          if (imgElement.complete && imgElement.naturalHeight !== 0) {
-            console.log(`Image ${index} already loaded`);
-            resolve(true);
-          } else {
-            imgElement.onload = () => {
-              console.log(`Image ${index} loaded successfully`);
-              resolve(true);
-            };
-            imgElement.onerror = (e) => {
-              console.error(`Image ${index} failed to load:`, e);
-              resolve(true); // 即使失败也继续
-            };
-            
-            // 强制重新加载图片
-            const originalSrc = imgElement.src;
-            imgElement.src = '';
-            imgElement.src = originalSrc;
-          }
-        });
-      })
-    );
-
-    // 给图片一点额外的时间渲染
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // 转换为canvas
-    const canvas = await html2canvas(container, {
-      scale: 2,
-      useCORS: true,
-      allowTaint: false,
-      backgroundColor: '#ffffff',
-      logging: true,
-      imageTimeout: 15000,
-    });
-
-    // 移除临时容器
-    document.body.removeChild(container);
-
-    // 创建PDF
-    const imgData = canvas.toDataURL('image/jpeg', 0.95);
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
       format: 'a4',
     });
-
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pdfWidth;
-    const imgHeight = (canvas.height * pdfWidth) / canvas.width;
-
-    let heightLeft = imgHeight;
-    let position = 0;
-
-    // 添加第一页
-    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-    heightLeft -= pdfHeight;
-
-    // 如果内容超过一页，添加更多页
-    while (heightLeft > 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pdfHeight;
-    }
-
-    // 保存PDF
-    const fileName = `${recipe.name.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')}.pdf`;
+    
+    // 获取图片base64数据
+    const imageBase64List = await getRecipeImagesBase64(recipe.imageIds);
+    
+    const html = generateRecipeHTML(recipe, menuInfo, ingredients, menuInfo?.price, imageBase64List);
+    await renderHTMLToPDF(pdf, html, pdfWidth, pdfHeight);
+    const sanitizedName = (recipe.name || '未命名配方')
+      .replace(/[<>:"/\\|?*]/g, '_') // 替换文件名中不允许的特殊字符
+      .trim(); // 移除首尾空格
+    const fileName = `${sanitizedName}.pdf`;
     pdf.save(fileName);
   } catch (error) {
     console.error('Failed to export PDF:', error);
-    alert('导出PDF失败，请重试');
+    alert('导出PDF失败，请重试。错误信息：' + (error instanceof Error ? error.message : '未知错误'));
   }
 }
 
-/**
- * 导出店面酒单为PDF
- */
 export async function exportVenueMenuToPDF(
   venue: Venue,
   venueRecipes: Array<VenueRecipe & { recipe: any }>,
@@ -231,313 +269,51 @@ export async function exportVenueMenuToPDF(
 ) {
   try {
     const availableRecipes = venueRecipes.filter(vr => vr.isAvailable);
-    
     if (availableRecipes.length === 0) {
       alert('没有可导出的上架酒款');
       return;
     }
-
-    // 创建PDF
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
       format: 'a4',
     });
-
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = pdf.internal.pageSize.getHeight();
-    const margin = 15; // 页边距
-    const headerHeight = 10; // 页眉高度
-    const footerHeight = 10; // 页脚高度
-    const contentWidth = pdfWidth - 2 * margin;
-    const contentHeight = pdfHeight - 2 * margin - headerHeight - footerHeight;
 
-    let currentPage = 0;
-    const totalPages = availableRecipes.length + 1; // 配方页 + 原料清单页
-
-    // 添加页眉页脚
-    const addHeaderFooter = (pageNum: number) => {
-      // 页眉 - 店面名称
-      pdf.setFontSize(10);
-      pdf.setTextColor(100, 100, 100);
-      pdf.text(venue.name, pdfWidth / 2, margin / 2, { align: 'center' });
-      
-      // 页脚 - 页码
-      pdf.setFontSize(9);
-      pdf.text(`${pageNum} / ${totalPages}`, pdfWidth / 2, pdfHeight - margin / 2, { align: 'center' });
-    };
-
-    // 渲染每个配方
     for (let i = 0; i < availableRecipes.length; i++) {
       const vr = availableRecipes[i];
       const recipe = vr.recipe;
       if (!recipe) continue;
-
-      currentPage++;
-      
-      if (i > 0) {
-        pdf.addPage();
-      }
-
-      // 创建单个配方的HTML
       const displayPrice = vr.customPrice ?? recipe.menuInfo?.price ?? 0;
-      const recipeHTML = createSingleRecipeHTML(recipe, displayPrice, ingredients);
       
-      // 创建临时容器
-      const container = document.createElement('div');
-      container.style.position = 'absolute';
-      container.style.left = '-9999px';
-      container.style.top = '0';
-      container.style.width = `${contentWidth * 3.78}px`; // mm转px (1mm ≈ 3.78px)
-      container.innerHTML = recipeHTML;
-      document.body.appendChild(container);
+      // 获取图片base64数据
+      const imageBase64List = await getRecipeImagesBase64(recipe.imageIds);
+      
+      const html = generateRecipeHTML(recipe, recipe.menuInfo, ingredients, displayPrice, imageBase64List);
+      await renderHTMLToPDF(pdf, html, pdfWidth, pdfHeight, i > 0);
+    }
 
-      // 等待图片加载
-      const images = container.querySelectorAll('img');
-      await Promise.all(
-        Array.from(images).map((img) => {
-          return new Promise((resolve) => {
-            const imgElement = img as HTMLImageElement;
-            if (imgElement.complete && imgElement.naturalHeight !== 0) {
-              resolve(true);
-            } else {
-              imgElement.onload = () => resolve(true);
-              imgElement.onerror = () => resolve(true);
-              const originalSrc = imgElement.src;
-              imgElement.src = '';
-              imgElement.src = originalSrc;
-            }
-          });
-        })
-      );
-
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      // 转换为canvas
-      const canvas = await html2canvas(container, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: false,
-        backgroundColor: '#ffffff',
-        logging: false,
-        imageTimeout: 15000,
+    const ingredientSet = new Set<number>();
+    availableRecipes.forEach(vr => {
+      const recipe = vr.recipe;
+      if (!recipe || !recipe.ingredients) return;
+      recipe.ingredients.forEach((ing: any) => {
+        ingredientSet.add(ing.ingredientId);
       });
-
-      document.body.removeChild(container);
-
-      // 计算图片尺寸
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      const imgWidth = contentWidth;
-      const imgHeight = (canvas.height * contentWidth) / canvas.width;
-
-      // 如果内容高度超过可用高度，需要缩放
-      if (imgHeight > contentHeight) {
-        const scale = contentHeight / imgHeight;
-        const scaledWidth = imgWidth * scale;
-        const scaledHeight = contentHeight;
-        const xOffset = margin + (contentWidth - scaledWidth) / 2;
-        pdf.addImage(imgData, 'JPEG', xOffset, margin + headerHeight, scaledWidth, scaledHeight);
-      } else {
-        pdf.addImage(imgData, 'JPEG', margin, margin + headerHeight, imgWidth, imgHeight);
-      }
-
-      // 添加页眉页脚
-      addHeaderFooter(currentPage);
-    }
-
-    // 添加原料汇总清单页
-    currentPage++;
-    pdf.addPage();
-    
-    const ingredientHTML = createIngredientSummaryHTML(availableRecipes, ingredients);
-    const container = document.createElement('div');
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
-    container.style.top = '0';
-    container.style.width = `${contentWidth * 3.78}px`;
-    container.innerHTML = ingredientHTML;
-    document.body.appendChild(container);
-
-    await new Promise(resolve => setTimeout(resolve, 300));
-
-    const canvas = await html2canvas(container, {
-      scale: 2,
-      useCORS: true,
-      allowTaint: false,
-      backgroundColor: '#ffffff',
-      logging: false,
     });
+    const sortedIngredients = Array.from(ingredientSet)
+      .map(id => ingredients.find(i => i.id === id))
+      .filter(ing => ing !== undefined)
+      .sort((a, b) => a!.name.localeCompare(b!.name, 'zh-CN'));
 
-    document.body.removeChild(container);
+    const summaryHTML = `<div style="text-align: center; margin-bottom: 20px;"><div style="font-size: 24px; font-weight: bold;">原料汇总清单</div></div><div style="column-count: 2; column-gap: 30px;">${sortedIngredients.map(ingredient => `<div style="margin-bottom: 10px; word-break: break-word;">• ${ingredient!.name}${ingredient!.nameEn ? ` (${ingredient!.nameEn})` : ''}</div>`).join('')}</div>`;
+    await renderHTMLToPDF(pdf, summaryHTML, pdfWidth, pdfHeight, true);
 
-    const imgData = canvas.toDataURL('image/jpeg', 0.95);
-    const imgWidth = contentWidth;
-    const imgHeight = (canvas.height * contentWidth) / canvas.width;
-
-    if (imgHeight > contentHeight) {
-      const scale = contentHeight / imgHeight;
-      const scaledWidth = imgWidth * scale;
-      const scaledHeight = contentHeight;
-      const xOffset = margin + (contentWidth - scaledWidth) / 2;
-      pdf.addImage(imgData, 'JPEG', xOffset, margin + headerHeight, scaledWidth, scaledHeight);
-    } else {
-      pdf.addImage(imgData, 'JPEG', margin, margin + headerHeight, imgWidth, imgHeight);
-    }
-
-    addHeaderFooter(currentPage);
-
-    // 保存PDF
-    const fileName = `${venue.name.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')}_酒单.pdf`;
+    const fileName = `${(venue.name || '未命名店面').replace(/[^a-zA-Z0-9\\u4e00-\\u9fa5]/g, '_')}_酒单.pdf`;
     pdf.save(fileName);
   } catch (error) {
     console.error('Failed to export PDF:', error);
-    alert('导出PDF失败，请重试');
+    alert('导出PDF失败，请重试。错误信息：' + (error instanceof Error ? error.message : '未知错误'));
   }
-}
-
-/**
- * 创建单个配方的HTML（用于PDF单页渲染）
- */
-function createSingleRecipeHTML(
-  recipe: any,
-  displayPrice: number,
-  ingredients: Ingredient[]
-): string {
-  const basicInfo = [
-    `<div><strong>杯型：</strong>${getGlassTypeLabel(recipe.glassType)}</div>`,
-    `<div><strong>容量：</strong>${recipe.totalVolume || 0} ml</div>`,
-    `<div><strong>酒精度：</strong>${recipe.calculatedAbv || 0}%</div>`,
-    `<div><strong>成本：</strong>${formatCurrency(recipe.calculatedCost || 0)}</div>`,
-    `<div><strong>售价：</strong>${formatCurrency(displayPrice)}</div>`,
-  ];
-
-  if (recipe.menuInfo?.drinkDuration) {
-    basicInfo.push(`<div><strong>饮用时长：</strong>${getDrinkDurationLabel(recipe.menuInfo.drinkDuration)}</div>`);
-  }
-
-  const flavorTags = recipe.menuInfo?.flavorTags && recipe.menuInfo.flavorTags.length > 0
-    ? `<div style="margin-top: 10px;"><strong>风味标签：</strong>${recipe.menuInfo.flavorTags.map((tag: any) => getFlavorTagLabel(tag)).join(', ')}</div>`
-    : '';
-
-  const description = recipe.menuInfo?.description
-    ? `<div style="margin-top: 20px;">
-         <h4 style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">酒款描述</h4>
-         <p style="line-height: 1.6;">${recipe.menuInfo.description}</p>
-       </div>`
-    : '';
-
-  const ingredientsList = recipe.ingredients && recipe.ingredients.length > 0
-    ? recipe.ingredients.map((ing: any) => {
-        const ingredient = ingredients.find(i => i.id === ing.ingredientId);
-        const name = ingredient?.name || '未知';
-        const nameEn = ingredient?.nameEn || '';
-        const quantity = `${ing.quantity} ${ing.unit}`;
-        const abv = ingredient?.alcoholContent ? ` (酒精度 ${ingredient.alcoholContent}%)` : '';
-        return `<li style="margin-bottom: 6px;">${name}${nameEn ? ` (${nameEn})` : ''}: ${quantity}${abv}</li>`;
-      }).join('')
-    : '<li>暂无配料</li>';
-
-  const stepsList = recipe.steps && recipe.steps.length > 0
-    ? recipe.steps.map((step: any) => 
-        `<div style="margin-bottom: 10px; line-height: 1.6; display: flex;">
-          <span style="font-weight: bold; margin-right: 8px; min-width: 24px;">${step.stepNumber}.</span>
-          <span style="flex: 1;">${step.instruction}</span>
-        </div>`
-      ).join('')
-    : '';
-
-  const stepsSection = stepsList
-    ? `<div style="margin-top: 20px;">
-         <h4 style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">制作步骤</h4>
-         <div style="padding-left: 10px;">${stepsList}</div>
-       </div>`
-    : '';
-
-  const notesSection = recipe.notes
-    ? `<div style="margin-top: 20px;">
-         <h4 style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">备注</h4>
-         <p style="line-height: 1.6;">${recipe.notes}</p>
-       </div>`
-    : '';
-
-  const imageSection = recipe.images && recipe.images.length > 0
-    ? `<div style="text-align: center; margin: 20px 0;">
-         <img src="${recipe.images[0]}" alt="${recipe.name}" 
-              style="max-width: 250px; max-height: 250px; border-radius: 8px; display: inline-block;" 
-              crossorigin="anonymous" />
-       </div>`
-    : '';
-
-  return `
-    <div style="font-family: Arial, sans-serif; padding: 20px; background: white;">
-      <h2 style="font-size: 28px; font-weight: bold; text-align: center; margin-bottom: 10px;">
-        ${recipe.name}
-      </h2>
-      ${recipe.nameEn ? `<p style="font-size: 16px; font-style: italic; text-align: center; color: #666; margin-bottom: 20px;">${recipe.nameEn}</p>` : ''}
-      
-      ${imageSection}
-      
-      <div style="border-top: 2px solid #333; margin: 20px 0;"></div>
-      
-      <div style="margin-top: 15px;">
-        <h4 style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">基本信息</h4>
-        <div style="line-height: 1.8;">
-          ${basicInfo.join('')}
-          ${flavorTags}
-        </div>
-      </div>
-      
-      ${description}
-      
-      <div style="margin-top: 15px;">
-        <h4 style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">配料清单</h4>
-        <ul style="padding-left: 20px; line-height: 1.8;">
-          ${ingredientsList}
-        </ul>
-      </div>
-      
-      ${stepsSection}
-      ${notesSection}
-    </div>
-  `;
-}
-
-/**
- * 创建原料汇总清单HTML
- */
-function createIngredientSummaryHTML(
-  availableRecipes: Array<VenueRecipe & { recipe: any }>,
-  ingredients: Ingredient[]
-): string {
-  const ingredientSet = new Set<number>();
-  
-  availableRecipes.forEach(vr => {
-    const recipe = vr.recipe;
-    if (!recipe || !recipe.ingredients) return;
-    
-    recipe.ingredients.forEach((ing: any) => {
-      ingredientSet.add(ing.ingredientId);
-    });
-  });
-
-  const ingredientsList = Array.from(ingredientSet)
-    .map(id => ingredients.find(i => i.id === id))
-    .filter(ing => ing !== undefined)
-    .sort((a, b) => a!.name.localeCompare(b!.name, 'zh-CN'))
-    .map(ingredient => {
-      const nameEn = ingredient!.nameEn ? ` (${ingredient!.nameEn})` : '';
-      return `<li style="margin-bottom: 8px;">${ingredient!.name}${nameEn}</li>`;
-    }).join('');
-
-  return `
-    <div style="font-family: Arial, sans-serif; padding: 20px; background: white;">
-      <h2 style="font-size: 28px; font-weight: bold; text-align: center; margin-bottom: 20px;">
-        原料汇总清单
-      </h2>
-      <div style="border-top: 3px solid #333; margin: 20px 0;"></div>
-      <ul style="padding-left: 20px; line-height: 2; column-count: 2; column-gap: 40px;">
-        ${ingredientsList}
-      </ul>
-    </div>
-  `;
 }

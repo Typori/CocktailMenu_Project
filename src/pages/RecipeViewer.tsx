@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ImagePreviewDialog } from '@/components/ImagePreviewDialog';
-import { ArrowLeft, Edit, Star, Copy, ImageIcon, ChevronLeft, ChevronRight, FileDown } from 'lucide-react';
+import { ArrowLeft, Edit, Star, Copy, ImageIcon, FileDown } from 'lucide-react';
 import { formatCurrency, getConfigLabelFromMap } from '@/utils/calculations';
 import { exportRecipeToPDF } from '@/utils/pdfExport';
 import { useAllConfigLabelMaps } from '@/hooks/useSystemConfig';
@@ -18,7 +18,7 @@ export default function RecipeViewer() {
   const location = useLocation();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [menuInfo, setMenuInfo] = useState<MenuInfo | null>(null);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
   const [imageUrls, setImageUrls] = useState<string[]>([]); // 新增：用于存储图片预览URL
 
   const ingredients = useLiveQuery(() => db.ingredients.toArray(), []);
@@ -88,24 +88,14 @@ export default function RecipeViewer() {
   const handleExportPDF = async () => {
     if (!recipe || !ingredients) return;
     try {
-      await exportRecipeToPDF(recipe, menuInfo, ingredients, { includeImages: true });
+      await exportRecipeToPDF(recipe, menuInfo, ingredients);
     } catch (error) {
       console.error('Failed to export PDF:', error);
       alert('导出PDF失败，请重试');
     }
   };
 
-  const nextImage = () => {
-    if (imageUrls && imageUrls.length > 0) {
-      setCurrentImageIndex((prev) => (prev + 1) % imageUrls.length);
-    }
-  };
 
-  const prevImage = () => {
-    if (imageUrls && imageUrls.length > 0) {
-      setCurrentImageIndex((prev) => (prev - 1 + imageUrls.length) % imageUrls.length);
-    }
-  };
 
   if (!recipe) {
     return (
@@ -181,164 +171,98 @@ export default function RecipeViewer() {
             )}
           </div>
         </div>
-        {/* 图片轮播 */}
-        {imageUrls && imageUrls.length > 0 && (
-          <Card>
-            <CardContent className="p-0">
-              <div className="relative aspect-[16/9] max-h-[500px] rounded-lg overflow-hidden bg-muted">
-                <ImagePreviewDialog
-                  src={imageUrls[currentImageIndex]}
-                  alt={`${recipe.name} - 图片 ${currentImageIndex + 1}`}
-                  trigger={
-                    <div className="cursor-pointer group h-full">
-                      <img
-                        src={imageUrls[currentImageIndex]}
-                        alt={`${recipe.name} - 图片 ${currentImageIndex + 1}`}
-                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                      />
-                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <ImageIcon className="h-12 w-12 text-white" />
-                      </div>
+        {/* 图片展示区域 - 竖向布局 */}
+        <Card>
+          <CardContent className="p-0">
+            <div className="flex gap-3 p-4 overflow-x-auto">
+              {imageUrls && imageUrls.length > 0 ? (
+                imageUrls.map((url, index) => (
+                  <div key={index} className="flex-shrink-0">
+                    <ImagePreviewDialog
+                      src={url}
+                      alt={`${recipe.name} - 附图 ${index + 1}`}
+                      trigger={
+                        <div className="cursor-pointer group relative w-48 h-64 rounded-lg overflow-hidden bg-muted border-2 border-border hover:border-primary transition-colors flex items-center justify-center">
+                          <img
+                            src={url}
+                            alt={`${recipe.name} - 附图 ${index + 1}`}
+                            className="max-w-full max-h-full object-contain transition-transform group-hover:scale-105"
+                          />
+                          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <ImageIcon className="h-8 w-8 text-white" />
+                          </div>
+                        </div>
+                      }
+                    />
+                  </div>
+                ))
+              ) : (
+                <div className="flex-shrink-0">
+                  <div className="w-48 h-64 rounded-lg bg-gradient-to-br from-muted to-muted/50 border-2 border-dashed border-border flex items-center justify-center">
+                    <div className="text-center">
+                      <ImageIcon className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
+                      <span className="text-sm text-muted-foreground font-medium">待添加</span>
                     </div>
-                  }
-                />
-                
-                {/* 轮播控制 */}
-                {imageUrls.length > 1 && (
-                  <>
-                    <Button
-                      size="icon"
-                      variant="secondary"
-                      className="absolute left-2 top-1/2 -translate-y-1/2 opacity-70 hover:opacity-100"
-                      onClick={prevImage}
-                    >
-                      <ChevronLeft className="h-5 w-5" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="secondary"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 opacity-70 hover:opacity-100"
-                      onClick={nextImage}
-                    >
-                      <ChevronRight className="h-5 w-5" />
-                    </Button>
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-                      {imageUrls.map((_, index) => (
-                        <button
-                          key={index}
-                          onClick={() => setCurrentImageIndex(index)}
-                          className={`w-2 h-2 rounded-full transition-all ${
-                            index === currentImageIndex
-                              ? 'bg-white w-6'
-                              : 'bg-white/50 hover:bg-white/75'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* 基本信息卡片 */}
+        {/* 基本信息 */}
         <Card>
           <CardHeader>
             <CardTitle>基本信息</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* 风味标签 */}
-            {menuInfo?.flavorTags && menuInfo.flavorTags.length > 0 && (
-              <div>
-                <div className="text-sm font-medium text-muted-foreground mb-2">风味标签</div>
-                <div className="flex flex-wrap gap-2">
-                  {menuInfo.flavorTags.map((tag) => (
-                    <Badge key={tag} variant="secondary">
-                      {getConfigLabelFromMap(flavorTagMap, tag)}
-                    </Badge>
-                  ))}
-                </div>
+            {/* 配方名称 */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">配方名称 (中文)</div>
+                <div className="text-base">{recipe.name}</div>
               </div>
-            )}
-
-            {/* 详细信息网格 */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
-              <div>
-                <div className="text-sm font-medium text-muted-foreground">杯型</div>
-                <div className="text-base mt-1">{getConfigLabelFromMap(glassTypeMap, recipe.glassType)}</div>
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">配方名称 (英文)</div>
+                <div className="text-base">{recipe.nameEn || '-'}</div>
               </div>
-              <div>
-                <div className="text-sm font-medium text-muted-foreground">容量</div>
-                <div className="text-base mt-1">{recipe.totalVolume || 0} ml</div>
-              </div>
-              <div>
-                <div className="text-sm font-medium text-muted-foreground">酒精度</div>
-                <div className="text-base mt-1">{recipe.calculatedAbv || 0}%</div>
-              </div>
-              <div>
-                <div className="text-sm font-medium text-muted-foreground">饮用类型</div>
-                <div className="text-base mt-1">
-                  {menuInfo?.drinkDuration ? getConfigLabelFromMap(drinkDurationMap, menuInfo.drinkDuration) : '-'}
-                </div>
-              </div>
-              {menuInfo?.color && (
-                <div>
-                  <div className="text-sm font-medium text-muted-foreground">颜色</div>
-                  <div className="text-base mt-1">{menuInfo.color}</div>
-                </div>
-              )}
-              <div>
-                <div className="text-sm font-medium text-muted-foreground">成本</div>
-                <div className="text-base mt-1">{formatCurrency(recipe.calculatedCost || 0)}</div>
-              </div>
-              {menuInfo?.price !== undefined && menuInfo.price > 0 && (
-                <div>
-                  <div className="text-sm font-medium text-muted-foreground">建议售价</div>
-                  <div className="text-base mt-1">{formatCurrency(menuInfo.price)}</div>
-                </div>
-              )}
             </div>
 
-            {/* 酒款描述 */}
-            {menuInfo?.description && (
-              <div className="pt-4 border-t">
-                <div className="text-sm font-medium text-muted-foreground mb-2">酒款描述</div>
-                <p className="text-sm leading-relaxed">{menuInfo.description}</p>
+            {/* 容量和酒精度 */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">容量</div>
+                <div className="text-base">{recipe.totalVolume || 0} ml</div>
               </div>
-            )}
-
-            {/* 菜单名称版本 */}
-            {menuInfo?.menuNames && menuInfo.menuNames.length > 1 && (
-              <div className="pt-4 border-t">
-                <div className="text-sm font-medium text-muted-foreground mb-2">菜单名称版本</div>
-                <div className="flex flex-wrap gap-2">
-                  {menuInfo.menuNames.map((menuName) => (
-                    <Badge key={menuName.id} variant={menuName.isDefault ? "default" : "outline"}>
-                      {menuName.name}
-                      {menuName.isDefault && " (默认)"}
-                    </Badge>
-                  ))}
-                </div>
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">酒精度</div>
+                <div className="text-base">{recipe.calculatedAbv || 0}%</div>
               </div>
-            )}
+            </div>
           </CardContent>
         </Card>
 
-        {/* 配料清单 */}
+        {/* 配料列表 */}
         <Card>
           <CardHeader>
-            <CardTitle>配料清单</CardTitle>
+            <CardTitle>配料列表</CardTitle>
           </CardHeader>
           <CardContent>
             {recipe.ingredients && recipe.ingredients.length > 0 ? (
               <div className="space-y-2">
+                {/* 表头 */}
+                <div className="flex gap-3 items-center px-4 py-2 bg-muted/50 rounded-lg font-medium text-sm">
+                  <div className="flex-1">原料名称</div>
+                  <div className="w-32 text-center">用量</div>
+                  <div className="w-40 text-center">单位</div>
+                </div>
+                {/* 配料列表 */}
                 {recipe.ingredients.map((ing, index) => {
                   const ingredient = ingredients?.find(i => i.id === ing.ingredientId);
                   return (
                     <div
                       key={index}
-                      className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
+                      className="flex gap-3 items-center p-4 border rounded-lg bg-muted/30"
                     >
                       <div className="flex-1">
                         <div className="font-medium">{ingredient?.name || '未知原料'}</div>
@@ -346,22 +270,20 @@ export default function RecipeViewer() {
                           <div className="text-sm text-muted-foreground">{ingredient.nameEn}</div>
                         )}
                       </div>
-                      <div className="text-right ml-4">
-                        <div className="font-medium">
-                          {ing.quantity} {ing.unit}
-                        </div>
-                        {ingredient?.alcoholContent && ingredient.alcoholContent > 0 && (
-                          <div className="text-sm text-muted-foreground">
-                            {ingredient.alcoholContent}% ABV
-                          </div>
-                        )}
+                      <div className="w-32 text-center">
+                        <div className="text-base">{ing.quantity || 0}</div>
+                      </div>
+                      <div className="w-40 text-center">
+                        <div className="text-base">{ing.unit}</div>
                       </div>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <p className="text-center text-muted-foreground py-4">暂无配料信息</p>
+              <div className="text-center py-8 text-muted-foreground">
+                <p>暂无配料信息</p>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -373,20 +295,121 @@ export default function RecipeViewer() {
           </CardHeader>
           <CardContent>
             {recipe.steps && recipe.steps.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-2">
+                {/* 表头 */}
+                <div className="flex gap-3 items-center px-4 py-2 bg-muted/50 rounded-lg font-medium text-sm">
+                  <div className="w-12 text-center">步骤</div>
+                  <div className="flex-1">操作说明</div>
+                </div>
+                {/* 步骤列表 */}
                 {recipe.steps.map((step, index) => (
-                  <div key={index} className="flex gap-4">
-                    <div className="flex-shrink-0 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-sm font-medium">
+                  <div
+                    key={index}
+                    className="flex gap-3 items-center p-4 border rounded-lg bg-muted/30"
+                  >
+                    <div className="flex-shrink-0 w-12 h-10 bg-primary text-primary-foreground rounded-md flex items-center justify-center text-sm font-medium">
                       {step.stepNumber}
                     </div>
-                    <div className="flex-1 pt-1">
-                      <p className="text-sm leading-relaxed">{step.instruction}</p>
+                    <div className="flex-1">
+                      <div className="text-base">{step.instruction}</div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-center text-muted-foreground py-4">暂无制作步骤</p>
+              <div className="text-center py-8 text-muted-foreground">
+                <p>暂无制作步骤</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 详细信息 */}
+        <Card>
+          <CardHeader>
+            <CardTitle>详细信息</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* 风味标签 */}
+            {menuInfo?.flavorTags && menuInfo.flavorTags.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">风味标签</div>
+                <div className="flex flex-wrap gap-2">
+                  {menuInfo.flavorTags.map((tag) => (
+                    <Badge key={tag} variant="secondary">
+                      {getConfigLabelFromMap(flavorTagMap, tag)}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 饮用类型、颜色、使用杯型 */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">饮用类型</div>
+                <div className="text-base">
+                  {menuInfo?.drinkDuration ? getConfigLabelFromMap(drinkDurationMap, menuInfo.drinkDuration) : '-'}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">颜色</div>
+                <div className="text-base">{menuInfo?.color || '-'}</div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">使用杯型</div>
+                <div className="text-base">{getConfigLabelFromMap(glassTypeMap, recipe.glassType)}</div>
+              </div>
+            </div>
+
+            {/* 建议售价、成本计算、利润率 */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">建议售价</div>
+                <div className="text-base">
+                  {menuInfo?.price !== undefined && menuInfo.price > 0 ? formatCurrency(menuInfo.price) : '-'}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">成本计算</div>
+                <div className="text-base">{formatCurrency(recipe.calculatedCost || 0)}</div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">利润率</div>
+                <div className="text-base">
+                  {menuInfo?.price && recipe.calculatedCost 
+                    ? `${(((menuInfo.price - recipe.calculatedCost) / menuInfo.price) * 100).toFixed(1)}%`
+                    : '-'
+                  }
+                </div>
+              </div>
+            </div>
+
+            {/* 酒款描述 */}
+            {menuInfo?.description && (
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">酒款描述</div>
+                <div className="text-base leading-relaxed">{menuInfo.description}</div>
+              </div>
+            )}
+
+            {/* 菜单名称 */}
+            {menuInfo?.menuNames && menuInfo.menuNames.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">菜单名称</div>
+                <div className="space-y-2">
+                  {menuInfo.menuNames.map((menuName) => (
+                    <div key={menuName.id} className="flex items-center gap-2">
+                      <div className="text-base">{menuName.name}</div>
+                      {menuName.isDefault && (
+                        <Badge variant="default" className="text-xs">
+                          默认
+                        </Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -398,7 +421,7 @@ export default function RecipeViewer() {
               <CardTitle>备注</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm leading-relaxed whitespace-pre-wrap">{recipe.notes}</p>
+              <div className="text-base leading-relaxed whitespace-pre-wrap">{recipe.notes}</div>
             </CardContent>
           </Card>
         )}

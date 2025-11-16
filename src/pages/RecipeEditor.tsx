@@ -29,7 +29,7 @@ import { ImagePreviewDialog } from '@/components/ImagePreviewDialog';
 import { Combobox } from '@/components/ui/combobox';
 import AddIngredientDialog from '@/components/AddIngredientDialog';
 import { ArrowLeft, Save, Plus, Trash2, X, Upload, ImageIcon, GripVertical } from 'lucide-react';
-import { updateRecipeCalculations, convertUnit, canConvertUnits, convertToMl } from '@/utils/calculations';
+import { updateRecipeCalculations, convertUnit, canConvertUnits, convertToMl, calculateRecipeCost, calculateProfitMargin } from '@/utils/calculations';
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 import { useAllSystemConfigOptions } from '@/hooks/useSystemConfig';
 import {
@@ -162,6 +162,65 @@ function SortableIngredientItem({
   );
 }
 
+// 可排序制作步骤组件
+function SortableStepItem({
+  step,
+  index,
+  onStepChange,
+  onRemove,
+}: {
+  step: { stepNumber: number; instruction: string };
+  index: number;
+  onStepChange: (index: number, instruction: string) => void;
+  onRemove: (index: number) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: `step-${index}` });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex gap-3 items-center p-4 border rounded-lg bg-muted/30"
+    >
+      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+        <GripVertical className="h-5 w-5 text-muted-foreground" />
+      </div>
+      <div className="flex-shrink-0 w-12 h-10 bg-primary text-primary-foreground rounded-md flex items-center justify-center text-sm font-medium">
+        {step.stepNumber}
+      </div>
+      <div className="flex-1">
+        <Input
+          value={step.instruction}
+          onChange={(e) => onStepChange(index, e.target.value)}
+          placeholder={`第${step.stepNumber}步操作说明...`}
+          className="h-10"
+        />
+      </div>
+      <Button
+        size="icon"
+        variant="destructive"
+        onClick={() => onRemove(index)}
+        className="touch-feedback flex-shrink-0"
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
 export default function RecipeEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -190,6 +249,8 @@ export default function RecipeEditor() {
   });
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [calculatedCost, setCalculatedCost] = useState<number>(0);
+  const [calculatedProfitMargin, setCalculatedProfitMargin] = useState<number>(0);
   const initialDataRef = useRef<{ recipe: Partial<Recipe>; menuInfo: Partial<MenuInfo> } | null>(null);
   const [imageUrls, setImageUrls] = useState<string[]>([]); // 新增：用于存储图片预览URL
   const [showAddIngredientDialog, setShowAddIngredientDialog] = useState(false);
@@ -215,6 +276,27 @@ export default function RecipeEditor() {
       setRecipe({
         ...recipe,
         ingredients: arrayMove(recipe.ingredients || [], oldIndex, newIndex),
+      });
+    }
+  };
+
+  // 处理制作步骤拖拽结束
+  const handleStepDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = Number(String(active.id).replace('step-', ''));
+      const newIndex = Number(String(over.id).replace('step-', ''));
+      
+      const newSteps = arrayMove(recipe.steps || [], oldIndex, newIndex);
+      // 重新编号
+      newSteps.forEach((step, i) => {
+        step.stepNumber = i + 1;
+      });
+      
+      setRecipe({
+        ...recipe,
+        steps: newSteps,
       });
     }
   };
@@ -310,6 +392,7 @@ export default function RecipeEditor() {
     const calculateVolumeAndAbv = async () => {
       if (!recipe.ingredients || recipe.ingredients.length === 0) {
         setRecipe(prev => ({ ...prev, totalVolume: 0, calculatedAbv: 0 }));
+        setCalculatedCost(0);
         return;
       }
 
@@ -339,10 +422,26 @@ export default function RecipeEditor() {
         totalVolume: Math.round(totalVolumeMl * 10) / 10,
         calculatedAbv: Math.round(abv * 10) / 10
       }));
+
+      // 计算成本
+      try {
+        const cost = await calculateRecipeCost({ ...recipe, ingredients: recipe.ingredients } as Recipe);
+        setCalculatedCost(cost);
+      } catch (error) {
+        console.error('Failed to calculate cost:', error);
+        setCalculatedCost(0);
+      }
     };
 
     calculateVolumeAndAbv();
   }, [recipe.ingredients, ingredients]);
+
+  // 自动计算利润率
+  useEffect(() => {
+    const price = menuInfo.price || 0;
+    const margin = calculateProfitMargin(calculatedCost, price);
+    setCalculatedProfitMargin(margin);
+  }, [calculatedCost, menuInfo.price]);
 
   const handleAddIngredient = () => {
     setRecipe({
@@ -647,69 +746,6 @@ export default function RecipeEditor() {
               </div>
             </div>
 
-            {/* 风味标签 - 下拉多选 */}
-            <div className="space-y-2">
-              <Label>风味标签</Label>
-              <MultiSelect
-                options={configOptions.flavorTags?.map(tag => ({
-                  label: tag.label,
-                  value: tag.value
-                })) || []}
-                selected={menuInfo.flavorTags || []}
-                onChange={(selected) => setMenuInfo({ ...menuInfo, flavorTags: selected as FlavorTag[] })}
-                placeholder="选择风味标签..."
-              />
-            </div>
-
-            {/* 饮用类型、颜色、杯型 */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="drinkDuration">饮用类型</Label>
-                <Select
-                  value={menuInfo.drinkDuration}
-                  onValueChange={(value) => setMenuInfo({ ...menuInfo, drinkDuration: value as DrinkDuration })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {configOptions.drinkDurations?.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    )) || <SelectItem value="loading" disabled>加载中...</SelectItem>}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="color">颜色</Label>
-                <Input
-                  id="color"
-                  value={menuInfo.color || ''}
-                  onChange={(e) => setMenuInfo({ ...menuInfo, color: e.target.value })}
-                  placeholder="例如: 琥珀色"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="glassType">使用杯型</Label>
-                <Select
-                  value={recipe.glassType}
-                  onValueChange={(value) => setRecipe({ ...recipe, glassType: value as GlassType })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {configOptions.glassTypes?.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    )) || <SelectItem value="loading" disabled>加载中...</SelectItem>}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
             {/* 容量和酒精度 */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -730,9 +766,9 @@ export default function RecipeEditor() {
               </div>
             </div>
 
-            {/* 图片上传 */}
+            {/* 附图 */}
             <div className="space-y-3">
-              <Label>成品图片</Label>
+              <Label>附图</Label>
               <div className="space-y-3">
                 {/* 图片预览网格 */}
                 {imageUrls && imageUrls.length > 0 && (
@@ -741,12 +777,12 @@ export default function RecipeEditor() {
                       <ImagePreviewDialog
                         key={url} // 使用 URL 作为 key
                         src={url}
-                        alt={`成品图 ${index + 1}`}
+                        alt={`附图 ${index + 1}`}
                         trigger={
                           <div className="relative group cursor-pointer aspect-square rounded-lg overflow-hidden border-2 border-border hover:border-primary transition-colors">
                             <img
                               src={url}
-                              alt={`成品图 ${index + 1}`}
+                              alt={`附图 ${index + 1}`}
                               className="w-full h-full object-cover"
                             />
                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -897,37 +933,32 @@ export default function RecipeEditor() {
               <div className="space-y-2">
                 {/* 表头 */}
                 <div className="flex gap-3 items-center px-4 py-2 bg-muted/50 rounded-lg font-medium text-sm">
+                  <div className="w-5"></div>
                   <div className="w-12 text-center">步骤</div>
                   <div className="flex-1">操作说明</div>
                   <div className="w-10"></div>
                 </div>
-                {/* 步骤列表 */}
-                {recipe.steps.map((step, index) => (
-                  <div
-                    key={index}
-                    className="flex gap-3 items-center p-4 border rounded-lg bg-muted/30"
+                {/* 步骤列表 - 支持拖拽排序 */}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleStepDragEnd}
+                >
+                  <SortableContext
+                    items={recipe.steps.map((_, index) => `step-${index}`)}
+                    strategy={verticalListSortingStrategy}
                   >
-                    <div className="flex-shrink-0 w-12 h-10 bg-primary text-primary-foreground rounded-md flex items-center justify-center text-sm font-medium">
-                      {step.stepNumber}
-                    </div>
-                    <div className="flex-1">
-                      <Input
-                        value={step.instruction}
-                        onChange={(e) => handleStepChange(index, e.target.value)}
-                        placeholder={`第${step.stepNumber}步操作说明...`}
-                        className="h-10"
+                    {recipe.steps.map((step, index) => (
+                      <SortableStepItem
+                        key={`step-${index}`}
+                        step={step}
+                        index={index}
+                        onStepChange={handleStepChange}
+                        onRemove={handleRemoveStep}
                       />
-                    </div>
-                    <Button
-                      size="icon"
-                      variant="destructive"
-                      onClick={() => handleRemoveStep(index)}
-                      className="touch-feedback flex-shrink-0"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
+                    ))}
+                  </SortableContext>
+                </DndContext>
                 {/* 添加步骤按钮 */}
                 <Button
                   variant="outline"
@@ -955,57 +986,74 @@ export default function RecipeEditor() {
 
         <Card>
           <CardHeader>
-            <CardTitle>菜单信息</CardTitle>
+            <CardTitle>详细信息</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* 菜单名称版本 */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>菜单名称</Label>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleAddMenuName}
-                  className="touch-feedback"
+            {/* 风味标签 */}
+            <div className="space-y-2">
+              <Label>风味标签</Label>
+              <MultiSelect
+                options={configOptions.flavorTags?.map(tag => ({
+                  label: tag.label,
+                  value: tag.value
+                })) || []}
+                selected={menuInfo.flavorTags || []}
+                onChange={(selected) => setMenuInfo({ ...menuInfo, flavorTags: selected as FlavorTag[] })}
+                placeholder="选择风味标签..."
+              />
+            </div>
+
+            {/* 饮用类型、颜色、使用杯型 */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="drinkDuration">饮用类型</Label>
+                <Select
+                  value={menuInfo.drinkDuration}
+                  onValueChange={(value) => setMenuInfo({ ...menuInfo, drinkDuration: value as DrinkDuration })}
                 >
-                  <Plus className="mr-2 h-3 w-3" />
-                  添加版本
-                </Button>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {configOptions.drinkDurations?.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    )) || <SelectItem value="loading" disabled>加载中...</SelectItem>}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
-                {menuInfo.menuNames?.map((menuName, index) => (
-                  <div key={menuName.id} className="flex gap-2 items-center">
-                    <Input
-                      value={menuName.name}
-                      onChange={(e) => handleMenuNameChange(menuName.id, e.target.value)}
-                      placeholder={`菜单名称 ${index + 1}`}
-                      className="flex-1"
-                    />
-                    <Button
-                      size="sm"
-                      variant={menuName.isDefault ? "default" : "outline"}
-                      onClick={() => handleSetDefaultMenuName(menuName.id)}
-                      className="touch-feedback"
-                    >
-                      {menuName.isDefault ? "默认" : "设为默认"}
-                    </Button>
-                    {menuInfo.menuNames!.length > 1 && (
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleRemoveMenuName(menuName.id)}
-                        className="touch-feedback"
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
+                <Label htmlFor="color">颜色</Label>
+                <Input
+                  id="color"
+                  value={menuInfo.color || ''}
+                  onChange={(e) => setMenuInfo({ ...menuInfo, color: e.target.value })}
+                  placeholder="例如: 琥珀色"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="glassType">使用杯型</Label>
+                <Select
+                  value={recipe.glassType}
+                  onValueChange={(value) => setRecipe({ ...recipe, glassType: value as GlassType })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {configOptions.glassTypes?.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    )) || <SelectItem value="loading" disabled>加载中...</SelectItem>}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
-            {/* 建议售价和酒精度 */}
-            <div className="grid grid-cols-2 gap-4">
+            {/* 建议售价、成本计算、利润率 */}
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="price">建议售价 (¥)</Label>
                 <Input
@@ -1020,9 +1068,17 @@ export default function RecipeEditor() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>酒精度</Label>
+                <Label>成本计算</Label>
                 <Input
-                  value={`${recipe.calculatedAbv || 0}%`}
+                  value={`¥${calculatedCost.toFixed(2)}`}
+                  disabled
+                  className="bg-muted"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>利润率</Label>
+                <Input
+                  value={`${calculatedProfitMargin.toFixed(1)}%`}
                   disabled
                   className="bg-muted"
                 />
@@ -1039,6 +1095,67 @@ export default function RecipeEditor() {
                 onChange={(e) => setMenuInfo({ ...menuInfo, description: e.target.value })}
                 placeholder="描述这款酒的特点、口感、适合场合等..."
               />
+            </div>
+
+            {/* 菜单名称 */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>菜单名称</Label>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleAddMenuName}
+                  className="touch-feedback"
+                >
+                  <Plus className="mr-1 h-3 w-3" />
+                  添加版本
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {menuInfo.menuNames && menuInfo.menuNames.length > 0 ? (
+                  menuInfo.menuNames.map((menuName) => (
+                    <div key={menuName.id} className="flex gap-2 items-center">
+                      <div className="flex-1">
+                        <Input
+                          value={menuName.name}
+                          onChange={(e) => handleMenuNameChange(menuName.id, e.target.value)}
+                          placeholder="输入菜单名称..."
+                        />
+                      </div>
+                      <Button
+                        size="sm"
+                        variant={menuName.isDefault ? "default" : "outline"}
+                        onClick={() => handleSetDefaultMenuName(menuName.id)}
+                        className="touch-feedback"
+                        title={menuName.isDefault ? "默认名称" : "设为默认"}
+                      >
+                        {menuName.isDefault ? "默认" : "设为默认"}
+                      </Button>
+                      {menuInfo.menuNames && menuInfo.menuNames.length > 1 && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleRemoveMenuName(menuName.id)}
+                          className="touch-feedback"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-4 text-muted-foreground">
+                    <p>还没有添加菜单名称</p>
+                    <Button
+                      variant="link"
+                      onClick={handleAddMenuName}
+                      className="mt-1"
+                    >
+                      添加第一个菜单名称
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
