@@ -96,6 +96,7 @@ export interface Recipe {
   totalVolume?: number; // 总容量 (ml)
   calculatedAbv?: number; // 计算的酒精度
   calculatedCost?: number; // 计算的成本
+  currentRating?: number; // 当前评分（所有评分的平均值，保留1位小数）
   displayOrder?: number; // 展示顺序
   tags?: string[]; // 标签
   isFavorite?: boolean; // 是否收藏
@@ -165,6 +166,15 @@ export interface MakingNote {
   rating?: number; // 1-5星
   adjustments?: string; // 调整建议
   timestamp: Date;
+}
+
+// 配方评分
+export interface RecipeRating {
+  id?: number;
+  recipeId: number;
+  rating: number; // 0-5分，保留1位小数
+  comment?: string; // 评语
+  createdAt?: Date;
 }
 
 // 搜索筛选条件

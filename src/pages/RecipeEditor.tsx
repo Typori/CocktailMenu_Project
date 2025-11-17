@@ -28,6 +28,9 @@ import { MultiSelect } from '@/components/ui/multi-select';
 import { ImagePreviewDialog } from '@/components/ImagePreviewDialog';
 import { Combobox } from '@/components/ui/combobox';
 import AddIngredientDialog from '@/components/AddIngredientDialog';
+import { ScrollButtons } from '@/components/ScrollButtons';
+import { RecipeRatings } from '@/components/RecipeRatings';
+import { PageNavigation, NavigationSection } from '@/components/PageNavigation';
 import { ArrowLeft, Save, Plus, Trash2, X, Upload, ImageIcon, GripVertical } from 'lucide-react';
 import { updateRecipeCalculations, convertUnit, canConvertUnits, convertToMl, calculateRecipeCost, calculateProfitMargin } from '@/utils/calculations';
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
@@ -246,6 +249,16 @@ export default function RecipeEditor() {
     drinkDuration: 'short',
     price: 0,
   });
+  
+  // 定义页面导航区域
+  const navigationSections: NavigationSection[] = [
+    { id: 'section-basic', label: '基本信息', key: '1' },
+    { id: 'section-ingredients', label: '配料列表', key: '2' },
+    { id: 'section-steps', label: '制作步骤', key: '3' },
+    { id: 'section-details', label: '详细信息', key: '4' },
+    { id: 'section-notes', label: '备注', key: '5' },
+    ...(id ? [{ id: 'section-ratings', label: '评分', key: '6' }] : []),
+  ];
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [calculatedCost, setCalculatedCost] = useState<number>(0);
@@ -718,7 +731,7 @@ export default function RecipeEditor() {
           </div>
         </div>
 
-        <Card>
+        <Card id="section-basic">
           <CardHeader>
             <CardTitle>基本信息</CardTitle>
           </CardHeader>
@@ -859,7 +872,7 @@ export default function RecipeEditor() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="section-ingredients">
           <CardHeader>
             <CardTitle>配料列表</CardTitle>
           </CardHeader>
@@ -923,7 +936,7 @@ export default function RecipeEditor() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="section-steps">
           <CardHeader>
             <CardTitle>制作步骤</CardTitle>
           </CardHeader>
@@ -983,7 +996,7 @@ export default function RecipeEditor() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="section-details">
           <CardHeader>
             <CardTitle>详细信息</CardTitle>
           </CardHeader>
@@ -1180,7 +1193,7 @@ export default function RecipeEditor() {
         </Card>
 
         {/* 备注区域 */}
-        <Card>
+        <Card id="section-notes">
           <CardHeader>
             <CardTitle>备注</CardTitle>
           </CardHeader>
@@ -1193,7 +1206,26 @@ export default function RecipeEditor() {
             />
           </CardContent>
         </Card>
+
+        {/* 评分系统 - 仅在编辑现有配方时显示 */}
+        {id && (
+          <div id="section-ratings">
+            <RecipeRatings 
+              recipeId={Number(id)}
+              onRatingsChange={(avgRating) => {
+                // 更新本地状态中的评分
+                setRecipe(prev => ({ ...prev, currentRating: avgRating }));
+              }}
+            />
+          </div>
+        )}
       </div>
+
+      {/* 页面导航 */}
+      <PageNavigation sections={navigationSections} />
+
+      {/* 滚动按钮 */}
+      <ScrollButtons />
 
       {/* 未保存更改提示对话框 */}
       <AlertDialog open={showDialog} onOpenChange={(open) => !open && handleCancelNavigation()}>

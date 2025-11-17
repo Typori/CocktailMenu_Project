@@ -12,6 +12,7 @@ import {
   VenueIngredient,
   SystemConfig,
   ImageRecord,
+  RecipeRating,
 } from '@/types';
 
 export class CocktailDatabase extends Dexie {
@@ -27,6 +28,7 @@ export class CocktailDatabase extends Dexie {
   venueIngredients!: Table<VenueIngredient, number>;
   systemConfigs!: Table<SystemConfig, number>;
   imageStore!: Table<ImageRecord, number>; // 新增图片存储表
+  recipeRatings!: Table<RecipeRating, number>; // 新增评分表
 
   constructor() {
     super('CocktailMenuDB');
@@ -433,6 +435,40 @@ export class CocktailDatabase extends Dexie {
         }
       }
       console.log('数据库升级到Version 8完成！图片存储已分离。');
+    });
+
+    // 版本9：添加评分系统
+    this.version(9).stores({
+      recipes: '++id, name, parentRecipeId, isFavorite, createdAt, displayOrder, *tags, glassType, *imageIds, currentRating',
+      menuInfo: '++id, recipeId, isAvailable, displayOrder, *flavorTags, drinkDuration',
+      tags: '++id, name',
+      inventoryLogs: '++id, ingredientId, timestamp',
+      makingNotes: '++id, recipeId, timestamp',
+      settings: '++id',
+      venues: '++id, name, createdAt',
+      venueRecipes: '++id, venueId, recipeId, displayOrder, isAvailable',
+      ingredients: '++id, name, category, displayOrder, createdAt, price, quantity',
+      venueIngredients: '++id, venueId, ingredientId, displayOrder, [venueId+ingredientId]',
+      systemConfigs: '++id, [configType+value], [configType+isActive], configType, isActive, displayOrder',
+      imageStore: '++id, mimeType',
+      recipeRatings: '++id, recipeId, createdAt', // 新增评分表
+    }).upgrade(async tx => {
+      console.log('开始数据库升级到Version 9 - 添加评分系统...');
+      
+      // 为现有配方初始化currentRating字段
+      const recipes = await tx.table('recipes').toArray();
+      console.log(`找到 ${recipes.length} 个配方，初始化评分字段...`);
+      
+      for (const recipe of recipes) {
+        if (recipe.currentRating === undefined) {
+          await tx.table('recipes').update(recipe.id!, { 
+            currentRating: 0,
+            updatedAt: new Date(),
+          });
+        }
+      }
+      
+      console.log('数据库升级到Version 9完成！评分系统已添加。');
     });
   }
 }

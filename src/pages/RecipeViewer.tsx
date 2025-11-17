@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ImagePreviewDialog } from '@/components/ImagePreviewDialog';
+import { ScrollButtons } from '@/components/ScrollButtons';
+import { RecipeRatings } from '@/components/RecipeRatings';
+import { PageNavigation, NavigationSection } from '@/components/PageNavigation';
 import { ArrowLeft, Edit, Star, Copy, ImageIcon, FileDown } from 'lucide-react';
 import { formatCurrency, getConfigLabelFromMap } from '@/utils/calculations';
 import { exportRecipeToPDF } from '@/utils/pdfExport';
@@ -25,6 +28,16 @@ export default function RecipeViewer() {
   
   // 获取配置标签映射
   const { flavorTagMap, glassTypeMap, drinkDurationMap, techniqueMap } = useAllConfigLabelMaps();
+
+  // 定义页面导航区域
+  const navigationSections: NavigationSection[] = [
+    { id: 'section-basic', label: '基本信息', key: '1' },
+    { id: 'section-ingredients', label: '配料列表', key: '2' },
+    { id: 'section-steps', label: '制作步骤', key: '3' },
+    { id: 'section-details', label: '详细信息', key: '4' },
+    ...(recipe?.notes ? [{ id: 'section-notes', label: '备注', key: '5' }] : []),
+    ...(id ? [{ id: 'section-ratings', label: '评分', key: '6' }] : []),
+  ];
 
   // 处理返回按钮 - 返回上一页
   const handleGoBack = () => {
@@ -211,7 +224,7 @@ export default function RecipeViewer() {
         </Card>
 
         {/* 基本信息 */}
-        <Card>
+        <Card id="section-basic">
           <CardHeader>
             <CardTitle>基本信息</CardTitle>
           </CardHeader>
@@ -239,11 +252,22 @@ export default function RecipeViewer() {
                 <div className="text-base">{recipe.calculatedAbv || 0}%</div>
               </div>
             </div>
+
+            {/* 当前评分 */}
+            {recipe.currentRating !== undefined && recipe.currentRating > 0 && (
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">当前评分</div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-bold text-primary">{recipe.currentRating.toFixed(1)}</span>
+                  <span className="text-sm text-muted-foreground">/ 5.0</span>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
         {/* 配料列表 */}
-        <Card>
+        <Card id="section-ingredients">
           <CardHeader>
             <CardTitle>配料列表</CardTitle>
           </CardHeader>
@@ -289,7 +313,7 @@ export default function RecipeViewer() {
         </Card>
 
         {/* 制作步骤 */}
-        <Card>
+        <Card id="section-steps">
           <CardHeader>
             <CardTitle>制作步骤</CardTitle>
           </CardHeader>
@@ -325,7 +349,7 @@ export default function RecipeViewer() {
         </Card>
 
         {/* 详细信息 */}
-        <Card>
+        <Card id="section-details">
           <CardHeader>
             <CardTitle>详细信息</CardTitle>
           </CardHeader>
@@ -424,7 +448,7 @@ export default function RecipeViewer() {
 
         {/* 备注 */}
         {recipe.notes && (
-          <Card>
+          <Card id="section-notes">
             <CardHeader>
               <CardTitle>备注</CardTitle>
             </CardHeader>
@@ -433,7 +457,26 @@ export default function RecipeViewer() {
             </CardContent>
           </Card>
         )}
+
+        {/* 评分系统 - 只读模式 */}
+        {id && (
+          <div id="section-ratings">
+            <RecipeRatings 
+              recipeId={Number(id)}
+              onRatingsChange={(avgRating) => {
+                // 更新本地状态中的评分
+                setRecipe(prev => prev ? { ...prev, currentRating: avgRating } : null);
+              }}
+            />
+          </div>
+        )}
       </div>
+
+      {/* 页面导航 */}
+      <PageNavigation sections={navigationSections} />
+
+      {/* 滚动按钮 */}
+      <ScrollButtons />
     </div>
   );
 }
