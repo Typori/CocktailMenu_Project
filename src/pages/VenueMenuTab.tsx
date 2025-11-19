@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -56,6 +57,7 @@ function SortableVenueRecipeCard({
   recipe,
   venueRecipe,
   isSortMode,
+  showMenuName,
   onToggleAvailable,
   onRemove,
   onEditPrice,
@@ -65,6 +67,7 @@ function SortableVenueRecipeCard({
   recipe: any;
   venueRecipe: VenueRecipe;
   isSortMode: boolean;
+  showMenuName: boolean;
   onToggleAvailable: (id: number, currentStatus: boolean | undefined) => void;
   onRemove: (id: number) => void;
   onEditPrice: (venueRecipe: VenueRecipe) => void;
@@ -87,6 +90,16 @@ function SortableVenueRecipeCard({
   };
 
   const displayPrice = venueRecipe.customPrice ?? recipe.menuInfo?.price ?? 0;
+  
+  // 获取显示名称：根据开关状态显示配方名或默认菜单名
+  const getDisplayName = () => {
+    if (!showMenuName) {
+      return recipe.name;
+    }
+    // 查找默认菜单名称
+    const defaultMenuName = recipe.menuInfo?.menuNames?.find((mn: any) => mn.isDefault)?.name;
+    return defaultMenuName || recipe.name;
+  };
 
   return (
     <div ref={setNodeRef} style={style} className="touch-none">
@@ -106,7 +119,7 @@ function SortableVenueRecipeCard({
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <CardTitle className="text-xl flex items-center gap-2">
-                  <span className="truncate">{recipe.name}</span>
+                  <span className="truncate">{getDisplayName()}</span>
                   {recipe.isFavorite && (
                     <Star className="h-4 w-4 fill-yellow-500 text-yellow-500 flex-shrink-0" />
                   )}
@@ -136,16 +149,16 @@ function SortableVenueRecipeCard({
           <div onClick={() => onViewRecipe(recipe.id)}>
             <CardHeader className="pb-2 cursor-pointer hover:bg-muted/50 transition-colors rounded-t-lg">
               <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <CardTitle className="text-xl flex items-center gap-2">
-                    <span className="truncate">{recipe.name}</span>
-                    {recipe.isFavorite && (
-                      <Star className="h-4 w-4 fill-yellow-500 text-yellow-500 flex-shrink-0" />
-                    )}
-                  </CardTitle>
-                  {recipe.nameEn && (
-                    <p className="text-sm text-muted-foreground mt-0.5">{recipe.nameEn}</p>
+              <div className="flex-1 min-w-0">
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <span className="truncate">{getDisplayName()}</span>
+                  {recipe.isFavorite && (
+                    <Star className="h-4 w-4 fill-yellow-500 text-yellow-500 flex-shrink-0" />
                   )}
+                </CardTitle>
+                {recipe.nameEn && (
+                  <p className="text-sm text-muted-foreground mt-0.5">{recipe.nameEn}</p>
+                )}
                 </div>
                 {/* 风味标签在右上角 */}
                 <div className="flex flex-col items-end gap-1">
@@ -235,6 +248,7 @@ export default function VenueMenuTab({ venueId, activeTab, onTabChange }: VenueM
   }>({});
   const [customPrice, setCustomPrice] = useState<number>(0);
   const [addRecipeSearchTerm, setAddRecipeSearchTerm] = useState('');
+  const [showMenuName, setShowMenuName] = useState(false); // 新增状态：是否显示菜单名
 
   const allRecipes = useLiveQuery(() => db.recipes.toArray(), []);
   const allMenuInfos = useLiveQuery(() => db.menuInfo.toArray(), []);
@@ -507,7 +521,9 @@ export default function VenueMenuTab({ venueId, activeTab, onTabChange }: VenueM
     }
 
     if (updatedCount > 0) {
-      alert(`已更新 ${updatedCount} 款酒的状态\n上架: ${availableCount} 款\n下架: ${unavailableCount} 款`);
+      alert(`已更新 ${updatedCount} 款酒的状态
+上架: ${availableCount} 款
+下架: ${unavailableCount} 款`);
     } else {
       alert('所有酒款状态已是最新，无需更新');
     }
@@ -570,6 +586,16 @@ export default function VenueMenuTab({ venueId, activeTab, onTabChange }: VenueM
             </>
           ) : (
             <>
+              <div className="flex items-center gap-2 px-3 py-1.5 border rounded-md bg-background">
+                <Label htmlFor="show-menu-name" className="text-sm cursor-pointer whitespace-nowrap">
+                  显示菜单名
+                </Label>
+                <Switch
+                  id="show-menu-name"
+                  checked={showMenuName}
+                  onCheckedChange={setShowMenuName}
+                />
+              </div>
               <Button 
                 variant="outline"
                 size="sm"
@@ -728,6 +754,7 @@ export default function VenueMenuTab({ venueId, activeTab, onTabChange }: VenueM
                   recipe={vr.recipe}
                   venueRecipe={vr}
                   isSortMode={isSortMode}
+                  showMenuName={showMenuName}
                   onToggleAvailable={handleToggleAvailable}
                   onRemove={handleRemoveRecipe}
                   onEditPrice={handleOpenPriceDialog}

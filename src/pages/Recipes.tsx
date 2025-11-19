@@ -416,17 +416,6 @@ export default function Recipes() {
           </div>
         </div>
 
-        {/* 排序模式提示 */}
-        {hasActiveFilters && !isSortMode && (
-          <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900">
-            <CardContent className="py-3">
-              <p className="text-sm text-blue-800 dark:text-blue-200">
-                💡 提示：清除搜索和筛选条件后可以使用拖拽排序功能
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
         {/* 搜索和筛选栏 - 排序模式下隐藏 */}
         {!isSortMode && (
           <div className="flex gap-3">
@@ -457,15 +446,15 @@ export default function Recipes() {
         {/* 筛选器 */}
         {!isSortMode && showFilters && (
           <Card>
-            <CardContent className="pt-6 space-y-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>风味标签</Label>
+            <CardContent className="pt-4 pb-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">风味标签</Label>
                   <Select
                     value={filters.flavorTag || 'all'}
                     onValueChange={(value) => setFilters({ ...filters, flavorTag: value === 'all' ? undefined : value as FlavorTag })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-9">
                       <SelectValue placeholder="全部" />
                     </SelectTrigger>
                     <SelectContent>
@@ -478,13 +467,13 @@ export default function Recipes() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>饮用类型</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">饮用类型</Label>
                   <Select
                     value={filters.drinkDuration || 'all'}
                     onValueChange={(value) => setFilters({ ...filters, drinkDuration: value === 'all' ? undefined : value as DrinkDuration })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-9">
                       <SelectValue placeholder="全部" />
                     </SelectTrigger>
                     <SelectContent>
@@ -494,13 +483,13 @@ export default function Recipes() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>使用杯型</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">使用杯型</Label>
                   <Select
                     value={filters.glassType || 'all'}
                     onValueChange={(value) => setFilters({ ...filters, glassType: value === 'all' ? undefined : value as GlassType })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-9">
                       <SelectValue placeholder="全部" />
                     </SelectTrigger>
                     <SelectContent>
