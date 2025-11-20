@@ -1,5 +1,6 @@
 import { db } from '@/db/database';
 import { ImageRecord } from '@/types';
+import { updateRecipeCalculations } from './calculations';
 
 /**
  * 计算两个字符串的相似度(使用简化的编辑距离算法)
@@ -134,6 +135,62 @@ export async function migrateOldRecipeImagesToImageStore(): Promise<{
     };
   }
 }
+
+/**
+ * 重新计算所有配方的容量和酒精度
+ * 
+ * 问题背景：
+ * 1. 之前的计算逻辑包含了所有单位类型（dash, drop, g等）
+ * 2. 新的计算逻辑只计算容积单位（ml, oz, cl）
+ * 3. 已保存的老数据需要用新逻辑重新计算
+ */
+export async function recalculateAllRecipes(): Promise<{
+  success: boolean;
+  recalculatedCount: number;
+  errors: string[];
+}> {
+  const errors: string[] = [];
+  let recalculatedCount = 0;
+
+  try {
+    console.log('🔧 开始重新计算所有配方的容量和酒精度...');
+
+    const allRecipes = await db.recipes.toArray();
+    console.log(`📋 找到 ${allRecipes.length} 个配方需要重新计算`);
+
+    for (const recipe of allRecipes) {
+      try {
+        if (recipe.id) {
+          await updateRecipeCalculations(recipe.id);
+          recalculatedCount++;
+          console.log(`✅ 已重新计算配方: ${recipe.name}`);
+        }
+      } catch (error) {
+        const errorMsg = `配方 "${recipe.name}" 计算失败: ${String(error)}`;
+        console.error(`❌ ${errorMsg}`);
+        errors.push(errorMsg);
+      }
+    }
+
+    console.log(`\n✅ 重新计算完成！`);
+    console.log(`   - 成功计算的配方数: ${recalculatedCount}`);
+    console.log(`   - 错误数: ${errors.length}`);
+
+    return {
+      success: true,
+      recalculatedCount,
+      errors,
+    };
+  } catch (error) {
+    console.error('❌ 重新计算过程中出错:', error);
+    return {
+      success: false,
+      recalculatedCount,
+      errors: [...errors, String(error)],
+    };
+  }
+}
+
 
 /**
  * 修复配方中的原料ID引用
@@ -403,22 +460,30 @@ export async function runFullDataRepair(): Promise<void> {
   // 3. 迁移旧图片
   const imageMigrationResult = await migrateOldRecipeImagesToImageStore();
 
-  // 4. 输出总结
+  // 4. 重新计算所有配方
+  const recalcResult = await recalculateAllRecipes();
+
+  // 5. 输出总结
   console.log('\n' + '='.repeat(50));
   console.log('📊 数据修复总结');
   console.log('='.repeat(50));
   console.log(`清理重复原料: ${dedupeResult.removedCount} 个`);
   console.log(`修复配方数量: ${repairResult.repairedRecipes} 个`);
   console.log(`迁移旧图片数量: ${imageMigrationResult.migratedImages} 个`);
-  console.log(`错误数量: ${repairResult.errors.length + imageMigrationResult.errors.length} 个`);
+  console.log(`重新计算配方数量: ${recalcResult.recalculatedCount} 个`);
+  console.log(`错误数量: ${repairResult.errors.length + imageMigrationResult.errors.length + recalcResult.errors.length} 个`);
   
-  if (repairResult.errors.length > 0 || imageMigrationResult.errors.length > 0) {
+  if (repairResult.errors.length > 0 || imageMigrationResult.errors.length > 0 || recalcResult.errors.length > 0) {
     console.log('\n⚠️  错误详情:');
-    repairResult.errors.forEach((err, i) => {
-      console.log(`  ${i + 1}. ${err}`);
+    let errorIndex = 1;
+    repairResult.errors.forEach(err => {
+      console.log(`  ${errorIndex++}. ${err}`);
     });
-    imageMigrationResult.errors.forEach((err, i) => {
-      console.log(`  ${repairResult.errors.length + i + 1}. ${err}`);
+    imageMigrationResult.errors.forEach(err => {
+      console.log(`  ${errorIndex++}. ${err}`);
+    });
+    recalcResult.errors.forEach(err => {
+      console.log(`  ${errorIndex++}. ${err}`);
     });
   }
   

@@ -89,11 +89,20 @@ export async function calculateRecipeCost(recipe: Recipe): Promise<number> {
 }
 
 // 计算配方的酒精度 (ABV)
+// 只计算容积单位的原料（ml, oz, cl），其他单位不参与计算
 export async function calculateRecipeAbv(recipe: Recipe): Promise<number> {
   let totalAlcoholVolume = 0;
   let totalVolume = 0;
 
+  // 定义容积单位
+  const volumeUnits = ['ml', 'oz', 'cl'];
+
   for (const recipeIngredient of recipe.ingredients) {
+    // 只计算容积单位的原料
+    if (!volumeUnits.includes(recipeIngredient.unit)) {
+      continue;
+    }
+
     const ingredient = await db.ingredients.get(recipeIngredient.ingredientId);
     if (ingredient) {
       const volumeInMl = convertToMl(recipeIngredient.quantity, recipeIngredient.unit);
@@ -110,10 +119,19 @@ export async function calculateRecipeAbv(recipe: Recipe): Promise<number> {
 }
 
 // 计算配方的总容量
+// 只计算容积单位的原料（ml, oz, cl），其他单位不参与计算
 export async function calculateRecipeVolume(recipe: Recipe): Promise<number> {
   let totalVolume = 0;
 
+  // 定义容积单位
+  const volumeUnits = ['ml', 'oz', 'cl'];
+
   for (const recipeIngredient of recipe.ingredients) {
+    // 只计算容积单位的原料
+    if (!volumeUnits.includes(recipeIngredient.unit)) {
+      continue;
+    }
+
     const volumeInMl = convertToMl(recipeIngredient.quantity, recipeIngredient.unit);
     totalVolume += volumeInMl;
   }
