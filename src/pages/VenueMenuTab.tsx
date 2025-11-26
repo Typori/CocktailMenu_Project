@@ -248,7 +248,11 @@ export default function VenueMenuTab({ venueId, activeTab, onTabChange }: VenueM
   }>({});
   const [customPrice, setCustomPrice] = useState<number>(0);
   const [addRecipeSearchTerm, setAddRecipeSearchTerm] = useState('');
-  const [showMenuName, setShowMenuName] = useState(false); // 新增状态：是否显示菜单名
+  const [showMenuName, setShowMenuName] = useState(() => {
+    // 从 localStorage 读取状态，默认为 false
+    const saved = localStorage.getItem(`venue_${venueId}_showMenuName`);
+    return saved === 'true';
+  }); // 新增状态：是否显示菜单名
 
   const allRecipes = useLiveQuery(() => db.recipes.toArray(), []);
   const allMenuInfos = useLiveQuery(() => db.menuInfo.toArray(), []);
@@ -593,7 +597,10 @@ export default function VenueMenuTab({ venueId, activeTab, onTabChange }: VenueM
                 <Switch
                   id="show-menu-name"
                   checked={showMenuName}
-                  onCheckedChange={setShowMenuName}
+                  onCheckedChange={(checked) => {
+                    setShowMenuName(checked);
+                    localStorage.setItem(`venue_${venueId}_showMenuName`, String(checked));
+                  }}
                 />
               </div>
               <Button 

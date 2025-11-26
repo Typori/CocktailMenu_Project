@@ -346,6 +346,7 @@ export default function Recipes() {
       id: undefined,
       name: `${recipe.name} (副本)`,
       isFavorite: false, // 复制的配方默认不收藏
+      currentRating: undefined, // 复制的配方评分重置
       createdAt: new Date(),
       updatedAt: new Date(),
     };
