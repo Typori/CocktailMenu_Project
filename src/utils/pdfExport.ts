@@ -402,3 +402,121 @@ export async function exportVenueMenuToPDF(
     alert('导出PDF失败，请重试。错误信息：' + (error instanceof Error ? error.message : '未知错误'));
   }
 }
+
+/**
+ * 生成简化版配方HTML（仅原料和步骤）
+ * 优化排版以确保内容在一页内显示
+ */
+async function generateSimpleRecipeHTML(
+  recipe: Recipe,
+  menuInfo: MenuInfo | null,
+  ingredients: Ingredient[]
+): Promise<string> {
+  // 获取默认菜单名称
+  const defaultMenuName = menuInfo?.menuNames?.find(mn => mn.isDefault)?.name;
+  
+  const ingredientsList = recipe.ingredients?.map(ing => {
+    const ingredient = ingredients.find(i => i.id === ing.ingredientId);
+    return `<tr><td style="border: 1px solid #ddd; padding: 6px 8px; font-size: 12px;">${ingredient?.name || '未知原料'}</td><td style="border: 1px solid #ddd; padding: 6px 8px; text-align: center; font-size: 12px;">${ing.quantity || 0} ${ing.unit || ''}</td></tr>`;
+  }).join('') || '<tr><td colspan="2" style="border: 1px solid #ddd; padding: 6px 8px; text-align: center; color: #999; font-size: 12px;">暂无配料信息</td></tr>';
+
+  const stepsList = recipe.steps?.map(step => `<tr><td style="border: 1px solid #ddd; padding: 6px 8px; vertical-align: top; text-align: center; font-weight: bold; font-size: 12px; width: 50px;">${step.stepNumber || '1'}</td><td style="border: 1px solid #ddd; padding: 6px 8px; font-size: 12px; line-height: 1.4;">${step.instruction || '-'}</td></tr>`).join('') || '';
+
+  return `
+    <div style="text-align: center; margin-bottom: 15px;">
+      <div style="font-size: 22px; font-weight: bold; margin-bottom: 4px;">${recipe.name || '未命名配方'}</div>
+      ${recipe.nameEn ? `<div style="font-size: 13px; color: #666; margin-bottom: 2px;">${recipe.nameEn}</div>` : ''}
+      ${defaultMenuName ? `<div style="font-size: 12px; color: #888; font-style: italic;">菜单名称: ${defaultMenuName}</div>` : ''}
+    </div>
+
+    <div style="margin-bottom: 12px;">
+      <div style="font-size: 15px; font-weight: bold; margin-bottom: 6px; color: #333; border-bottom: 2px solid #333; padding-bottom: 3px;">原料列表</div>
+      <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
+        <tr style="background-color: #f5f5f5;">
+          <th style="border: 1px solid #ddd; padding: 6px 8px; text-align: left; font-size: 13px;">原料名称</th>
+          <th style="border: 1px solid #ddd; padding: 6px 8px; text-align: center; font-size: 13px; width: 120px;">用量</th>
+        </tr>
+        ${ingredientsList}
+      </table>
+    </div>
+
+    ${stepsList ? `
+    <div style="margin-bottom: 12px;">
+      <div style="font-size: 15px; font-weight: bold; margin-bottom: 6px; color: #333; border-bottom: 2px solid #333; padding-bottom: 3px;">制作步骤</div>
+      <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
+        <tr style="background-color: #f5f5f5;">
+          <th style="border: 1px solid #ddd; padding: 6px 8px; text-align: center; font-size: 13px; width: 50px;">步骤</th>
+          <th style="border: 1px solid #ddd; padding: 6px 8px; text-align: left; font-size: 13px;">操作说明</th>
+        </tr>
+        ${stepsList}
+      </table>
+    </div>
+    ` : ''}
+  `;
+}
+
+/**
+ * 导出单个配方的简化版PDF（仅原料和步骤）
+ */
+export async function exportSimpleRecipeToPDF(
+  recipe: Recipe,
+  menuInfo: MenuInfo | null,
+  ingredients: Ingredient[]
+) {
+  try {
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    });
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    
+    const html = await generateSimpleRecipeHTML(recipe, menuInfo, ingredients);
+    await renderHTMLToPDF(pdf, html, pdfWidth, pdfHeight);
+    const fileName = `${(recipe.name || '未命名配方').replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')}_简化版.pdf`;
+    pdf.save(fileName);
+  } catch (error) {
+    console.error('Failed to export simple PDF:', error);
+    alert('导出简化版PDF失败，请重试。错误信息：' + (error instanceof Error ? error.message : '未知错误'));
+  }
+}
+
+/**
+ * 导出店面酒单的简化版PDF（仅原料和步骤）
+ */
+export async function exportSimpleVenueMenuToPDF(
+  venue: Venue,
+  venueRecipes: Array<VenueRecipe & { recipe: any }>,
+  ingredients: Ingredient[]
+) {
+  try {
+    const availableRecipes = venueRecipes.filter(vr => vr.isAvailable);
+    if (availableRecipes.length === 0) {
+      alert('没有可导出的上架酒款');
+      return;
+    }
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    });
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+
+    for (let i = 0; i < availableRecipes.length; i++) {
+      const vr = availableRecipes[i];
+      const recipe = vr.recipe;
+      if (!recipe) continue;
+      
+      const html = await generateSimpleRecipeHTML(recipe, recipe.menuInfo, ingredients);
+      await renderHTMLToPDF(pdf, html, pdfWidth, pdfHeight, i > 0);
+    }
+
+    const fileName = `${(venue.name || '未命名店面').replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')}_简化版酒单.pdf`;
+    pdf.save(fileName);
+  } catch (error) {
+    console.error('Failed to export simple venue menu:', error);
+    alert('导出简化版酒单失败，请重试。错误信息：' + (error instanceof Error ? error.message : '未知错误'));
+  }
+}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Filter, X, GripVertical, Check, FileDown, Edit, Trash2, Star, RefreshCw } from 'lucide-react';
+import { Plus, Search, Filter, X, GripVertical, Check, FileDown, Edit, Trash2, Star, RefreshCw, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +17,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -26,7 +32,7 @@ import {
 import { db } from '@/db/database';
 import { VenueRecipe, FlavorTag, DrinkDuration, GlassType } from '@/types';
 import { formatCurrency, getConfigLabelFromMap } from '@/utils/calculations';
-import { exportVenueMenuToPDF } from '@/utils/pdfExport';
+import { exportVenueMenuToPDF, exportSimpleVenueMenuToPDF } from '@/utils/pdfExport';
 import { useConfigLabelMap } from '@/hooks/useSystemConfig';
 import {
   DndContext,
@@ -474,6 +480,19 @@ export default function VenueMenuTab({ venueId, activeTab, onTabChange }: VenueM
     }
   };
 
+  const handleExportSimpleVenueMenu = async () => {
+    if (!venue || !venueRecipesWithInfo || !ingredients || venueRecipesWithInfo.length === 0) {
+      alert('没有可导出的酒款');
+      return;
+    }
+    try {
+      await exportSimpleVenueMenuToPDF(venue, venueRecipesWithInfo, ingredients);
+    } catch (error) {
+      console.error('Failed to export simple venue menu:', error);
+      alert('导出简化版酒单失败，请重试');
+    }
+  };
+
   // 根据库存刷新酒款状态
   const handleRefreshByStock = async () => {
     if (!venueRecipesWithInfo || !allRecipes) {
@@ -623,16 +642,28 @@ export default function VenueMenuTab({ venueId, activeTab, onTabChange }: VenueM
                 <GripVertical className="mr-2 h-4 w-4" />
                 排序
               </Button>
-              <Button 
-                variant="outline"
-                size="sm"
-                onClick={handleExportVenueMenu}
-                className="touch-feedback"
-                disabled={!venueRecipesWithInfo || venueRecipesWithInfo.length === 0}
-              >
-                <FileDown className="mr-2 h-4 w-4" />
-                导出
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    className="touch-feedback"
+                    disabled={!venueRecipesWithInfo || venueRecipesWithInfo.length === 0}
+                  >
+                    <FileDown className="mr-2 h-4 w-4" />
+                    导出
+                    <ChevronDown className="ml-1 h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleExportVenueMenu}>
+                    完整版酒单（含价格、成本等）
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportSimpleVenueMenu}>
+                    简化版酒单（仅原料和步骤）
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button size="sm" onClick={() => setIsAddRecipeDialogOpen(true)} className="touch-feedback">
                 <Plus className="mr-2 h-4 w-4" />
                 添加酒款

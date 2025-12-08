@@ -6,13 +6,19 @@ import { Recipe, MenuInfo, ImageRecord } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { ImagePreviewDialog } from '@/components/ImagePreviewDialog';
 import { ScrollButtons } from '@/components/ScrollButtons';
 import { RecipeRatings } from '@/components/RecipeRatings';
 import { PageNavigation, NavigationSection } from '@/components/PageNavigation';
-import { ArrowLeft, Edit, Star, Copy, ImageIcon, FileDown } from 'lucide-react';
+import { ArrowLeft, Edit, Star, Copy, ImageIcon, FileDown, ChevronDown } from 'lucide-react';
 import { formatCurrency, getConfigLabelFromMap } from '@/utils/calculations';
-import { exportRecipeToPDF } from '@/utils/pdfExport';
+import { exportRecipeToPDF, exportSimpleRecipeToPDF } from '@/utils/pdfExport';
 import { useAllConfigLabelMaps } from '@/hooks/useSystemConfig';
 
 export default function RecipeViewer() {
@@ -108,6 +114,16 @@ export default function RecipeViewer() {
     }
   };
 
+  const handleExportSimplePDF = async () => {
+    if (!recipe || !ingredients) return;
+    try {
+      await exportSimpleRecipeToPDF(recipe, menuInfo, ingredients);
+    } catch (error) {
+      console.error('Failed to export simple PDF:', error);
+      alert('导出简化版PDF失败，请重试');
+    }
+  };
+
 
 
   if (!recipe) {
@@ -125,15 +141,27 @@ export default function RecipeViewer() {
     <div className="relative pb-6">
       {/* 固定的操作按钮组 - 右上角 */}
       <div className="fixed top-4 right-4 z-50 flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleExportPDF}
-          className="touch-feedback shadow-lg bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
-        >
-          <FileDown className="mr-1 h-4 w-4" />
-          <span className="hidden sm:inline">导出</span>
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="touch-feedback shadow-lg bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+            >
+              <FileDown className="mr-1 h-4 w-4" />
+              <span className="hidden sm:inline">导出</span>
+              <ChevronDown className="ml-1 h-3 w-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleExportPDF}>
+              完整版PDF（含价格、成本等）
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleExportSimplePDF}>
+              简化版PDF（仅原料和步骤）
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button
           variant="outline"
           size="sm"

@@ -31,7 +31,7 @@ import AddIngredientDialog from '@/components/AddIngredientDialog';
 import { ScrollButtons } from '@/components/ScrollButtons';
 import { RecipeRatings } from '@/components/RecipeRatings';
 import { PageNavigation, NavigationSection } from '@/components/PageNavigation';
-import { ArrowLeft, Save, Plus, Trash2, X, Upload, ImageIcon, GripVertical } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, X, Upload, ImageIcon, GripVertical, MoveUp, MoveDown } from 'lucide-react';
 import { updateRecipeCalculations, convertUnit, canConvertUnits, convertToMl, calculateRecipeCost, calculateProfitMargin } from '@/utils/calculations';
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 import { useAllSystemConfigOptions } from '@/hooks/useSystemConfig';
@@ -50,6 +50,7 @@ import {
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
+  rectSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -161,6 +162,122 @@ function SortableIngredientItem({
       >
         <Trash2 className="h-4 w-4" />
       </Button>
+    </div>
+  );
+}
+
+// 可排序图片项组件
+function SortableImageItem({
+  imageUrl,
+  index,
+  totalImages,
+  onDelete,
+  onMoveUp,
+  onMoveDown,
+}: {
+  imageUrl: string;
+  index: number;
+  totalImages: number;
+  onDelete: (index: number) => void;
+  onMoveUp: (index: number) => void;
+  onMoveDown: (index: number) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: `image-${index}` });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="relative"
+    >
+      <ImagePreviewDialog
+        src={imageUrl}
+        alt={`附图 ${index + 1}`}
+        trigger={
+          <div className="relative group cursor-pointer aspect-square rounded-lg overflow-hidden border-2 border-border hover:border-primary transition-colors">
+            <img
+              src={imageUrl}
+              alt={`附图 ${index + 1}`}
+              className="w-full h-full object-cover"
+            />
+            {/* 封面标识 */}
+            {index === 0 && (
+              <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-md font-medium">
+                封面
+              </div>
+            )}
+            {/* 拖拽手柄 */}
+            <div 
+              {...attributes} 
+              {...listeners} 
+              className="absolute top-2 right-2 bg-black/50 p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <GripVertical className="h-4 w-4 text-white" />
+            </div>
+            {/* 悬停遮罩 */}
+            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <ImageIcon className="h-6 w-6 text-white" />
+            </div>
+            {/* 操作按钮组 */}
+            <div className="absolute bottom-2 left-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              {index > 0 && (
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  className="h-7 w-7 flex-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMoveUp(index);
+                  }}
+                  title="上移"
+                >
+                  <MoveUp className="h-3 w-3" />
+                </Button>
+              )}
+              {index < totalImages - 1 && (
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  className="h-7 w-7 flex-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMoveDown(index);
+                  }}
+                  title="下移"
+                >
+                  <MoveDown className="h-3 w-3" />
+                </Button>
+              )}
+              <Button
+                size="icon"
+                variant="destructive"
+                className="h-7 w-7 flex-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(index);
+                }}
+                title="删除"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
+        }
+      />
     </div>
   );
 }
@@ -311,6 +428,32 @@ export default function RecipeEditor() {
         steps: newSteps,
       });
     }
+  };
+
+  // 处理图片拖拽结束
+  const handleImageDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = Number(String(active.id).replace('image-', ''));
+      const newIndex = Number(String(over.id).replace('image-', ''));
+      
+      setRecipe({
+        ...recipe,
+        imageIds: arrayMove(recipe.imageIds || [], oldIndex, newIndex),
+      });
+    }
+  };
+
+  // 移动图片位置
+  const moveImage = (index: number, direction: 'up' | 'down') => {
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= (recipe.imageIds?.length || 0)) return;
+    
+    setRecipe({
+      ...recipe,
+      imageIds: arrayMove(recipe.imageIds || [], index, newIndex),
+    });
   };
 
   useEffect(() => {
@@ -782,45 +925,46 @@ export default function RecipeEditor() {
             <div className="space-y-3">
               <Label>附图</Label>
               <div className="space-y-3">
-                {/* 图片预览网格 */}
+                {/* 图片预览网格 - 支持拖拽排序 */}
                 {imageUrls && imageUrls.length > 0 && (
-                  <div className="grid grid-cols-4 gap-3">
-                    {imageUrls.map((url, index) => (
-                      <ImagePreviewDialog
-                        key={url} // 使用 URL 作为 key
-                        src={url}
-                        alt={`附图 ${index + 1}`}
-                        trigger={
-                          <div className="relative group cursor-pointer aspect-square rounded-lg overflow-hidden border-2 border-border hover:border-primary transition-colors">
-                            <img
-                              src={url}
-                              alt={`附图 ${index + 1}`}
-                              className="w-full h-full object-cover"
-                            />
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <ImageIcon className="h-6 w-6 text-white" />
-                            </div>
-                            <Button
-                              size="icon"
-                              variant="destructive"
-                              className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                const imageIdToRemove = recipe.imageIds?.[index];
-                                if (imageIdToRemove) {
-                                  await db.imageStore.delete(imageIdToRemove);
-                                  const newImageIds = (recipe.imageIds || []).filter((_, i) => i !== index);
-                                  setRecipe({ ...recipe, imageIds: newImageIds });
-                                }
-                              }}
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        }
-                      />
-                    ))}
-                  </div>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleImageDragEnd}
+                  >
+                    <SortableContext
+                      items={imageUrls.map((_, index) => `image-${index}`)}
+                      strategy={rectSortingStrategy}
+                    >
+                      <div className="grid grid-cols-4 gap-3">
+                        {imageUrls.map((url, index) => (
+                          <SortableImageItem
+                            key={`image-${index}`}
+                            imageUrl={url}
+                            index={index}
+                            totalImages={imageUrls.length}
+                            onDelete={async (idx) => {
+                              const imageIdToRemove = recipe.imageIds?.[idx];
+                              if (imageIdToRemove) {
+                                await db.imageStore.delete(imageIdToRemove);
+                                const newImageIds = (recipe.imageIds || []).filter((_, i) => i !== idx);
+                                setRecipe({ ...recipe, imageIds: newImageIds });
+                              }
+                            }}
+                            onMoveUp={(idx) => moveImage(idx, 'up')}
+                            onMoveDown={(idx) => moveImage(idx, 'down')}
+                          />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+                )}
+                
+                {/* 提示信息 */}
+                {imageUrls && imageUrls.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    💡 第一张图片将作为封面显示。拖拽图片可调整顺序，或使用上下移动按钮。
+                  </p>
                 )}
                 
                 {/* 上传按钮 */}
